@@ -145,8 +145,7 @@ Public Class Tests
         Arduino.Close()
         tmrFeeder.Enabled = False
         tmrChartTests.Enabled = False
-
-        'Me.Close()
+        Me.Close()
 
     End Sub
 

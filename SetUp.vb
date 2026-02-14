@@ -18,6 +18,8 @@
                 End If
             Next
 
+            If txbPostSession.Text = "" Then txbPostSession.Text = 0
+            If txbStart.Text = "" Then txbStart.Text = 0
 
             'This checks for errors or missing data in the set up and prompts the user for corrections. If no problem is found the selected programs are initiated.
             If txtSubject.Text = "" Or txtSession.Text = "" Or txtCOM.Text = "" Then
@@ -118,6 +120,8 @@
                 WriteLine(3, AC(i).DelayType(1))
                 WriteLine(3, AC(i).DelayRetract(0))
                 WriteLine(3, AC(i).DelayRetract(1))
+                WriteLine(3, AC(i).DelaySignalDuration(0))
+                WriteLine(3, AC(i).DelaySignalDuration(1))
             Next
             FileClose(3)
         Else
@@ -154,6 +158,7 @@
                 ReDim AC(i).DelayDuration(1)
                 ReDim AC(i).DelayType(1)
                 ReDim AC(i).DelayRetract(1)
+                ReDim AC(i).DelaySignalDuration(1)
                 '
                 AC(i).HouselightOnOff = fileReader.ReadLine().Replace("#", "")
                 AC(i).COD = fileReader.ReadLine()
@@ -182,6 +187,8 @@
                 AC(i).DelayType(1) = fileReader.ReadLine().Replace("""", "")
                 AC(i).DelayRetract(0) = fileReader.ReadLine().Replace("#", "")
                 AC(i).DelayRetract(1) = fileReader.ReadLine().Replace("#", "")
+                AC(i).DelaySignalDuration(0) = fileReader.ReadLine()
+                AC(i).DelaySignalDuration(1) = fileReader.ReadLine()
 
                 PrintInfo(lblComponent.Location.X, lblComponent.Location.Y, "Component " & i)
                 PrintInfo(lblComponentD.Location.X, lblComponentD.Location.Y, AC(i).ComponentDuration & " seconds")
@@ -192,12 +199,12 @@
                 PrintInfo(lblSchedule1.Location.X, lblSchedule1.Location.Y, AC(i).ScheduleType(0) & " " & AC(i).ScheduleValue(0))
                 PrintInfo(lblMagnitude1.Location.X, lblMagnitude1.Location.Y, AC(i).Magnitude(0) & " " & AC(i).Reinforcer(0) & " " & AC(i).PelletP(0))
                 PrintInfo(lblFeedback1.Location.X, lblFeedback1.Location.Y, AC(i).FeedbackType(0) & ": " & AC(i).FeedbackDuration(0) & " seconds")
-                PrintInfo(lblDelay1.Location.X, lblDelay1.Location.Y, AC(i).DelayType(0) & ": " & AC(i).DelayDuration(0) & " seconds - Ret: " & AC(i).DelayRetract(0))
+                PrintInfo(lblDelay1.Location.X, lblDelay1.Location.Y, AC(i).DelayType(0) & ": " & AC(i).DelayDuration(0) & " seconds - Ret: " & AC(i).DelayRetract(0) & "/ signal: " & AC(i).DelaySignalDuration(0) & " seconds")
 
                 PrintInfo(lblSchedule2.Location.X, lblSchedule2.Location.Y, AC(i).ScheduleType(1) & " " & AC(i).ScheduleValue(1))
                 PrintInfo(lblMagnitude2.Location.X, lblMagnitude2.Location.Y, AC(i).Magnitude(1) & " " & AC(i).Reinforcer(1) & " " & AC(i).PelletP(1))
                 PrintInfo(lblFeedback2.Location.X, lblFeedback2.Location.Y, AC(i).FeedbackType(1) & ": " & AC(i).FeedbackDuration(1) & " seconds")
-                PrintInfo(lblDelay2.Location.X, lblDelay2.Location.Y, AC(i).DelayType(1) & ": " & AC(i).DelayDuration(1) & " seconds - Ret: " & AC(i).DelayRetract(1))
+                PrintInfo(lblDelay2.Location.X, lblDelay2.Location.Y, AC(i).DelayType(1) & ": " & AC(i).DelayDuration(1) & " seconds - Ret: " & AC(i).DelayRetract(1) & "/ signal: " & AC(i).DelaySignalDuration(1) & " seconds")
 
                 For Each lb In Me.Controls
                     If lb.Text.Contains("Component ") Then
@@ -262,6 +269,7 @@
         AC(vCC).DelayDuration = Nothing
         AC(vCC).DelayType = Nothing
         AC(vCC).DelayRetract = Nothing
+        AC(vCC).DelaySignalDuration = Nothing
 
         ' Clear stored start index
         PreviewStartByComponent(vCC) = 0
@@ -276,10 +284,6 @@
             CheckBox1.Enabled = False
             RandomCPres = False
         End If
-
-    End Sub
-
-    Private Sub Button1_Click(sender As Object, e As EventArgs)
 
     End Sub
 

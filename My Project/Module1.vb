@@ -58,6 +58,7 @@
         Dim FeedbackDuration() As Integer
         Dim FeedbackType() As String
         Dim DelayDuration() As Integer
+        Dim DelaySignalDuration() As Integer
         Dim DelayType() As String
         Dim DelayRetract() As Boolean
         Dim IterationsLeft As Byte

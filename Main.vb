@@ -1,8 +1,6 @@
 ﻿Imports System.Math
 Imports System.IO.Ports
-Imports Microsoft.SqlServer
 Imports System.Windows.Forms.DataVisualization.Charting
-Imports System.Windows.Forms.VisualStyles.VisualStyleElement.Rebar
 Public Class Main
     Public Arduino As SerialPort
     Private WithEvents tmrChrt As Timer = New Timer
@@ -10,12 +8,17 @@ Public Class Main
     Private CompIndexSeq As Integer
     Private NosepokeIn(0) As Boolean 'False = currently OUT, True = currently IN
 
+    Private ObtainedDelayDurations(,) As List(Of Integer)   ' (component 1..MAXvCC, lever 0..1) values in ms
+    Private DelayOnset(1) As Integer                        ' onset time (ms) for current active delay per lever; -1 = none
+    Private DelayComp(1) As Integer  ' componente en el que comenzó la demora, por palanca
+
+
 
     Function ArduinoVB() As Integer 'This function starts the Arduino-VB communication.
         Arduino = New SerialPort(SetUp.txtCOM.Text, 9600) 'Assigns the Arduino to the selected port at a 9600 baud rate. 
         Arduino.Open() 'Starts the Arduino-VB communication.
         Arduino.WriteLine("p")
-        tmrStart.Interval = SetUp.txbStart.Text * 1000
+        tmrStart.Interval = Max(1, SetUp.txbStart.Text * 1000)
         If SetUp.txbICI.Text <> 0 Then
             tmrICI.Interval = SetUp.txbICI.Text * 1000
         Else
@@ -138,6 +141,25 @@ Public Class Main
         Chart1.Series("Component 3").Color = Color.FromArgb(100, Color.Yellow)
         Chart1.Series("Component 4").Color = Color.FromArgb(100, Color.Green)
 
+
+
+
+        ' =========================================================
+        ' Initialize obtained delays containers 
+        ' =========================================================
+        ReDim ObtainedDelayDurations(MAXvCC, 1)
+        For c As Integer = 1 To MAXvCC
+            For l As Integer = 0 To 1
+                ObtainedDelayDurations(c, l) = New List(Of Integer)
+            Next
+        Next
+
+        DelayOnset(0) = -1
+        DelayOnset(1) = -1
+        DelayComp(0) = -1
+        DelayComp(1) = -1
+
+
         ' Start first component
         BeginPrograms()
 
@@ -150,14 +172,11 @@ Public Class Main
         ' Select component
         ' =========================================================
         If RandomCPres = True Then
-            ' Take next component from pre-generated restricted sequence
             vCC = CompSequence(CompIndexSeq)
             CompIndexSeq += 1
         End If
 
-        ' Consume one iteration of the selected component
         If AC(vCC).IterationsLeft > 0 Then AC(vCC).IterationsLeft -= 1
-
 
         ' =========================================================
         ' Update component labels
@@ -166,7 +185,6 @@ Public Class Main
         lblComponentDuration.Text = AC(vCC).ComponentDuration
         lblComponentStim.Text = AC(vCC).ComponentStimType
         lblIterationsLeft.Text = AC(vCC).IterationsLeft
-
 
         ' =========================================================
         ' Reset timers and outputs
@@ -189,6 +207,15 @@ Public Class Main
         tmrStim1.Enabled = False
         tmrStim2.Enabled = False
         tmrNosepoke.Enabled = False
+        tmrDelaySignal1.Enabled = False
+        tmrDelaySignal2.Enabled = False
+
+        ' Reset current delay onset markers for the new component
+        DelayOnset(0) = -1
+        DelayOnset(1) = -1
+        DelayComp(0) = -1
+        DelayComp(1) = -1
+
 
         Arduino.WriteLine("a")
         Arduino.WriteLine("b")
@@ -200,14 +227,19 @@ Public Class Main
         AC(vCC).ComponentDuration_measured(AC(vCC).IterationsLeft) = lblTime.Text
         tmrComponentDuration.Enabled = True
 
-
         ' =========================================================
         ' Reset per-component data
         ' =========================================================
         VIList(0) = New List(Of Integer)
         VIList(1) = New List(Of Integer)
-        ObtainedDelays(0) = New List(Of Integer)
-        ObtainedDelays(1) = New List(Of Integer)
+
+        ' -----------------------------
+        ' IMPORTANT CHANGE:
+        ' Do NOT reset ObtainedDelays here (or you lose session history).
+        ' ObtainedDelayDurations(component, lever) already accumulates per component.
+        ' -----------------------------
+        ' ObtainedDelays(0) = New List(Of Integer)
+        ' ObtainedDelays(1) = New List(Of Integer)
 
         lblSubject.Text = SetUp.txtSubject.Text
         lblSession.Text = SetUp.txtSession.Text
@@ -216,18 +248,31 @@ Public Class Main
         If AC(vCC).HouselightOnOff = True Then Arduino.WriteLine("H")
         If AC(vCC).HouselightOnOff = False Then Arduino.WriteLine("h")
 
-        If AC(vCC).DelayDuration(0) <> 0 Then tmrDelay1.Interval = AC(vCC).DelayDuration(0) * 1000
-        If AC(vCC).DelayDuration(1) <> 0 Then tmrDelay2.Interval = AC(vCC).DelayDuration(1) * 1000
+        If AC(vCC).DelayDuration(0) > 0 Then tmrDelay1.Interval = Math.Max(1, AC(vCC).DelayDuration(0) * 1000)
+        If AC(vCC).DelayDuration(1) > 0 Then tmrDelay2.Interval = Math.Max(1, AC(vCC).DelayDuration(1) * 1000)
 
-        If AC(vCC).FeedbackDuration(0) <> 0 Then tmrStim1.Interval = AC(vCC).FeedbackDuration(0) * 1000
-        If AC(vCC).FeedbackDuration(1) <> 0 Then tmrStim2.Interval = AC(vCC).FeedbackDuration(1) * 1000
+        If AC(vCC).DelaySignalDuration(0) > 0 Then tmrDelaySignal1.Interval = Math.Max(1, AC(vCC).DelaySignalDuration(0) * 1000)
+        If AC(vCC).DelaySignalDuration(1) > 0 Then tmrDelaySignal2.Interval = Math.Max(1, AC(vCC).DelaySignalDuration(1) * 1000)
 
-        If AC(vCC).ScheduleType(0) <> "" Then Arduino.WriteLine("L")
-        If AC(vCC).ScheduleType(1) <> "" Then Arduino.WriteLine("M")
+        If AC(vCC).FeedbackDuration(0) > 0 Then tmrStim1.Interval = Math.Max(1, AC(vCC).FeedbackDuration(0) * 1000)
+        If AC(vCC).FeedbackDuration(1) > 0 Then tmrStim2.Interval = Math.Max(1, AC(vCC).FeedbackDuration(1) * 1000)
 
+        ' Lever 1
+        If AC(vCC).ScheduleType(0) <> "" AndAlso AC(vCC).ScheduleType(0).ToLower() <> "extinction" Then
+            Arduino.WriteLine("L") ' extiende
+        Else
+            Arduino.WriteLine("l") ' retrae
+        End If
+
+        ' Lever 2
+        If AC(vCC).ScheduleType(1) <> "" AndAlso AC(vCC).ScheduleType(1).ToLower() <> "extinction" Then
+            Arduino.WriteLine("M") ' extiende
+        Else
+            Arduino.WriteLine("m") ' retrae
+        End If
 
         ' =========================================================
-        ' Reset ratio counters (critical to avoid cross-schedule contamination) & Nosepoke register
+        ' Reset ratio counters & Nosepoke register
         ' =========================================================
         RatioGoal(0) = 0
         RatioGoal(1) = 0
@@ -235,7 +280,6 @@ Public Class Main
         RatioCount(1) = 0
         NosepokeIn(0) = False
         tmrNosepoke.Enabled = False
-
 
         ' =========================================================
         ' Initialize schedules
@@ -252,7 +296,6 @@ Public Class Main
         If AC(vCC).ScheduleType(0).Contains("Variable Interval") Then VIGen(0)
         If AC(vCC).ScheduleType(1).Contains("Variable Interval") Then VIGen(1)
 
-
         ' =========================================================
         ' Update schedule labels and logging
         ' =========================================================
@@ -268,6 +311,7 @@ Public Class Main
         tmrChrt.Enabled = True
 
     End Sub
+
 
     Private Sub Response(Lever As Integer)
         ' Registers a response and evaluates whether a reinforcer is available
@@ -302,7 +346,7 @@ Public Class Main
                     If AC(vCC).FeedbackDuration(Lever) > 0 Then Stimulus(Lever)
 
                     ' ---------------------------------------------------------
-                    ' Extinction schedules
+                    ' Extinction 
                     ' ---------------------------------------------------------
                     If (AC(vCC).ScheduleType(0) = "Extinction" And Lever = 0) Or
                    (AC(vCC).ScheduleType(1) = "Extinction" And Lever = 1) Then
@@ -330,19 +374,17 @@ Public Class Main
                             ' ---------------------------------------------------------
                             ' Responses during reinforcement delay
                             ' ---------------------------------------------------------
-                        ElseIf tmrDelay1.Enabled = True Then
-
-                            WriteLine(1, vTimeNow, "D" & 1)
+                        ElseIf tmrDelay1.Enabled Then
+                            WriteLine(1, vTimeNow, "D1")
                             ResponseCountDel(vCC, Lever) += 1
-                            ObtainedDelays(Lever).Item(DelayIndex(Lever)) = vTimeNow
 
-                        ElseIf tmrDelay2.Enabled = True Then
-
-                            WriteLine(1, vTimeNow, "D" & 2)
+                        ElseIf tmrDelay2.Enabled Then
+                            WriteLine(1, vTimeNow, "D2")
                             ResponseCountDel(vCC, Lever) += 1
-                            ObtainedDelays(Lever).Item(DelayIndex(Lever)) = vTimeNow
-
                         End If
+
+
+
                     End If
 
                 Else
@@ -354,6 +396,7 @@ Public Class Main
         End If
     End Sub
 
+
     Private Sub Nosepoke(Nose As Integer)
 
         ' Registers only the ONSET of the nosepoke (entry), not sustained contact.
@@ -364,35 +407,35 @@ Public Class Main
             ' Current raw state coming from Arduino stream:
             ' In your code: value <> 1 means "active" (beam broken / nosepoke present),
             ' value = 1 means "inactive".
-            Dim isActive As Boolean = (Actual_Response(2) <> 1)
+            'Dim isActive As Boolean = (Actual_Response(2) <> 1)
 
-            ' 1) ONSET: active now, but previously OUT -> register once
-            If isActive = True AndAlso NosepokeIn(Nose) = False Then
-                NosepokeIn(Nose) = True
+            '' 1) ONSET: active now, but previously OUT -> register once
+            ' If isActive = True AndAlso NosepokeIn(Nose) = False Then
+            'NosepokeIn(Nose) = True
 
-                ' Optional debounce window (keeps your original timer logic)
-                If tmrNosepoke.Enabled = False Then
-                    tmrNosepoke.Enabled = True
+            ' Optional debounce window (keeps your original timer logic)
+            ' If tmrNosepoke.Enabled = False Then
+            'tmrNosepoke.Enabled = True
 
-                    If tmrDelay1.Enabled = True Or tmrDelay2.Enabled = True Then
-                        WriteLine(1, vTimeNow, "D" & Nose + 3)
-                        NosepokeCountDel(vCC) += 1
-                    Else
-                        NosepokeCount(Nose) += 1
-                        lblTrayRs.Text = NosepokeCount(Nose)
-                        chartResponse(2) += 1
-                        WriteLine(1, vTimeNow, Nose + 3)
-                    End If
-                End If
-
+            If tmrDelay1.Enabled = True Or tmrDelay2.Enabled = True Then
+                WriteLine(1, vTimeNow, "D" & Nose + 3)
+                NosepokeCountDel(vCC) += 1
+            Else
+                NosepokeCount(Nose) += 1
+                lblTrayRs.Text = NosepokeCount(Nose)
+                chartResponse(2) += 1
+                WriteLine(1, vTimeNow, Nose + 3)
             End If
-
-            ' 2) OFFSET: inactive now -> re-arm for the next entry
-            If isActive = False Then
-                NosepokeIn(Nose) = False
-            End If
-
         End If
+
+        '  End If
+
+        ' 2) OFFSET: inactive now -> re-arm for the next entry
+        '  If isActive = False Then
+        'NosepokeIn(Nose) = False
+        'End If
+
+        ' End If
 
     End Sub
 
@@ -456,19 +499,16 @@ Public Class Main
 
     Private Sub Reinforce(Lever As Integer, Delay As Boolean)
 
-        ' Registers reinforcer availability, manages reinforcement delays,
-        ' and delivers reinforcers when delay conditions are met.
-
-        ' ---------------------------------------------------------
         ' Lever 1: initiate reinforcement delay
-        ' ---------------------------------------------------------
-        If Lever = 0 And AC(vCC).DelayDuration(0) > 0 And Delay = False Then
+        If Lever = 0 AndAlso AC(vCC).DelayDuration(0) > 0 AndAlso Delay = False Then
 
             tmrDelay1.Enabled = True
             If AC(vCC).DelayRetract(Lever) = True Then Arduino.WriteLine("l")
 
-            ' Store the response time that initiated the delay
-            ObtainedDelays(0).Add(vTimeNow)
+            ' Store onset time for this delay (per lever)
+            DelayOnset(0) = vTimeNow
+            DelayComp(0) = vCC
+
 
             ' Activate delay-associated stimuli
             If AC(vCC).DelayType(0) <> "" Then
@@ -478,15 +518,20 @@ Public Class Main
                 If AC(vCC).DelayType(0).Contains("Houselight") = True Then Arduino.WriteLine("H")
             End If
 
-            ' ---------------------------------------------------------
+            If AC(vCC).DelaySignalDuration(0) > 0 AndAlso AC(vCC).DelaySignalDuration(0) < AC(vCC).DelayDuration(0) Then
+                tmrDelaySignal1.Enabled = True
+            End If
+
             ' Lever 2: initiate reinforcement delay
-            ' ---------------------------------------------------------
-        ElseIf Lever = 1 And AC(vCC).DelayDuration(1) > 0 = True And Delay = False Then
+        ElseIf Lever = 1 AndAlso AC(vCC).DelayDuration(1) > 0 AndAlso Delay = False Then
 
             tmrDelay2.Enabled = True
             If AC(vCC).DelayRetract(Lever) = True Then Arduino.WriteLine("m")
 
-            ObtainedDelays(1).Add(vTimeNow)
+            ' Store onset time for this delay (per lever)
+            DelayOnset(1) = vTimeNow
+            DelayComp(1) = vCC
+
 
             ' Activate delay-associated stimuli
             If AC(vCC).DelayType(1) <> "" Then
@@ -496,15 +541,15 @@ Public Class Main
                 If AC(vCC).DelayType(1).Contains("Houselight") = True Then Arduino.WriteLine("H")
             End If
 
-            ' ---------------------------------------------------------
-            ' External reinforcer trigger (e.g., manual)
-            ' ---------------------------------------------------------
+            If AC(vCC).DelaySignalDuration(1) > 0 AndAlso AC(vCC).DelaySignalDuration(1) < AC(vCC).DelayDuration(1) Then
+                tmrDelaySignal2.Enabled = True
+            End If
+
+            ' External reinforcer trigger (manual)
         ElseIf Lever = 3 Then
             Arduino.WriteLine("R")
 
-            ' ---------------------------------------------------------
-            ' Deliver reinforcer
-            ' ---------------------------------------------------------
+            ' Deliver reinforcer now (immediate OR end-of-delay)
         Else
             refRdy(Lever) = False
 
@@ -535,10 +580,12 @@ Public Class Main
         End If
 
         ' Check component termination based on maximum reinforcers
-        If (RefCount_i(0) + RefCount_i(1)) >= AC(vCC).MaxRefs And AC(vCC).MaxRefs > 0 Then
+        If (RefCount_i(0) + RefCount_i(1)) >= AC(vCC).MaxRefs AndAlso AC(vCC).MaxRefs > 0 Then
             ComponentDuration_Code()
         End If
+
     End Sub
+
 
     Private Sub ReinforcerDelivery(Lever)
 
@@ -641,12 +688,26 @@ Public Class Main
         Arduino.Close() 'Terminates Arduino-VB communication.
 
         ' ---------------------------------------------------------
-        ' Optional: dump obtained delays (as originally implemented)
+        ' Obtained delays summary (per component, per lever)
         ' ---------------------------------------------------------
-        For i = 0 To ObtainedDelays.Count - 1
-            If ObtainedDelays(0).Count > 1 Then WriteLine(2, "Obtained delays L1: " & ObtainedDelays(0).Item(i))
-            If ObtainedDelays(1).Count > 1 Then WriteLine(2, "Obtained delays L2: " & ObtainedDelays(1).Item(i))
+        WriteLine(2, "Obtained delays (seconds) by component:")
+
+        For s = 1 To MAXvCC
+            If ObtainedDelayDurations(s, 0).Count > 0 Then
+                Dim secs1 = ObtainedDelayDurations(s, 0).Select(Function(ms) Math.Round(ms / 1000.0, 3)).ToArray()
+                WriteLine(2, "Component " & s & " L1: " & String.Join(", ", secs1))
+            Else
+                WriteLine(2, "Component " & s & " L1: (none)")
+            End If
+
+            If ObtainedDelayDurations(s, 1).Count > 0 Then
+                Dim secs2 = ObtainedDelayDurations(s, 1).Select(Function(ms) Math.Round(ms / 1000.0, 3)).ToArray()
+                WriteLine(2, "Component " & s & " L2: " & String.Join(", ", secs2))
+            Else
+                WriteLine(2, "Component " & s & " L2: (none)")
+            End If
         Next
+
 
         For i = 1 To 2
 
@@ -765,7 +826,8 @@ Public Class Main
             FileClose(i) 'Closes data file.
         Next
 
-        End
+        Application.Exit()
+
     End Sub
 
 
@@ -846,13 +908,8 @@ Public Class Main
 
     Private Sub tmrDelay1_Tick(sender As Object, e As EventArgs) Handles tmrDelay1.Tick
 
-        'This tick marks the end of the programmed delay for Lever 1 (when delays are enabled).
-        'It turns off delay-associated stimuli, delivers the reinforcer, retracts the lever if configured,
-        'and stores the obtained delay duration for later reporting.
-
         tmrDelay1.Enabled = False
 
-        'Turn off any stimuli that were active during the delay period.
         If AC(vCC).DelayType(0) <> "" Then
             If AC(vCC).DelayType(0).Contains("Light 1") = True Then Arduino.WriteLine("a")
             If AC(vCC).DelayType(0).Contains("Light 2") = True Then Arduino.WriteLine("b")
@@ -860,25 +917,28 @@ Public Class Main
             If AC(vCC).DelayType(0).Contains("Houselight") = True Then Arduino.WriteLine("h")
         End If
 
-        'Deliver the reinforcer now that the delay has elapsed (Delay=True indicates "end-of-delay delivery").
+        ' Deliver reinforcer now
         Reinforce(0, True)
 
-        'If configured, extend/retract the lever back after delivery.
         If AC(vCC).DelayRetract(0) = True Then Arduino.WriteLine("L")
 
-        'Compute obtained delay: current time minus the time saved at delay onset.
-        'The onset time was stored in ObtainedDelays(0) when the delay started.
-        ObtainedDelays(0).Item(DelayIndex(0)) = vTimeNow - ObtainedDelays(0).Item(DelayIndex(0))
-        DelayIndex(0) += 1
+        ' Save obtained delay duration ONLY if the component did NOT change
+        If DelayOnset(0) >= 0 AndAlso DelayComp(0) = vCC Then
+            Dim dur As Integer = vTimeNow - DelayOnset(0)
+            If dur < 0 Then dur = 0
+            ObtainedDelayDurations(vCC, 0).Add(dur)
+        End If
+
+        DelayOnset(0) = -1
+        DelayComp(0) = -1
+
+
     End Sub
 
     Private Sub tmrDelay2_Tick(sender As Object, e As EventArgs) Handles tmrDelay2.Tick
 
-        'Same logic as tmrDelay1_Tick, but for Lever 2.
-
         tmrDelay2.Enabled = False
 
-        'Turn off any stimuli that were active during the delay period.
         If AC(vCC).DelayType(1) <> "" Then
             If AC(vCC).DelayType(1).Contains("Light 1") = True Then Arduino.WriteLine("a")
             If AC(vCC).DelayType(1).Contains("Light 2") = True Then Arduino.WriteLine("b")
@@ -886,15 +946,43 @@ Public Class Main
             If AC(vCC).DelayType(1).Contains("Houselight") = True Then Arduino.WriteLine("h")
         End If
 
-        'Deliver the reinforcer after the delay elapses.
+        ' Deliver reinforcer now
         Reinforce(1, True)
 
-        'If configured, extend/retract the lever back after delivery.
         If AC(vCC).DelayRetract(1) = True Then Arduino.WriteLine("M")
 
-        'Compute and store obtained delay duration.
-        ObtainedDelays(1).Item(DelayIndex(1)) = vTimeNow - ObtainedDelays(1).Item(DelayIndex(1))
-        DelayIndex(1) += 1
+        ' Save obtained delay duration ONLY if the component did NOT change
+        If DelayOnset(1) >= 0 AndAlso DelayComp(1) = vCC Then
+            Dim dur As Integer = vTimeNow - DelayOnset(1)
+            If dur < 0 Then dur = 0
+            ObtainedDelayDurations(vCC, 1).Add(dur)
+        End If
+
+        DelayOnset(1) = -1
+        DelayComp(1) = -1
+
+
+    End Sub
+
+
+    Private Sub tmrDelaySignal1_Tick(sender As Object, e As EventArgs) Handles tmrDelaySignal1.Tick
+        tmrDelaySignal1.Enabled = False
+        If AC(vCC).DelayType(0) <> "" Then
+            If AC(vCC).DelayType(0).Contains("Light 1") = True Then Arduino.WriteLine("a")
+            If AC(vCC).DelayType(0).Contains("Light 2") = True Then Arduino.WriteLine("b")
+            If AC(vCC).DelayType(0).Contains("Tone") = True Then Arduino.WriteLine("t")
+            If AC(vCC).DelayType(0).Contains("Houselight") = True Then Arduino.WriteLine("h")
+        End If
+    End Sub
+
+    Private Sub tmrDelaySignal2_Tick(sender As Object, e As EventArgs) Handles tmrDelaySignal2.Tick
+        tmrDelaySignal2.Enabled = False
+        If AC(vCC).DelayType(1) <> "" Then
+            If AC(vCC).DelayType(1).Contains("Light 1") = True Then Arduino.WriteLine("a")
+            If AC(vCC).DelayType(1).Contains("Light 2") = True Then Arduino.WriteLine("b")
+            If AC(vCC).DelayType(1).Contains("Tone") = True Then Arduino.WriteLine("t")
+            If AC(vCC).DelayType(1).Contains("Houselight") = True Then Arduino.WriteLine("h")
+        End If
     End Sub
 
     Private Sub tmrStim1_Tick(sender As Object, e As EventArgs) Handles tmrStim1.Tick
@@ -977,7 +1065,7 @@ Public Class Main
         btnReinforce.Enabled = False
 
         'Start the post-session timer (e.g., to allow animals to consume the last reinforcer).
-        tmrPostSession.Interval = SetUp.txbPostSession.Text * 1000
+        tmrPostSession.Interval = Math.Max(1, SetUp.txbPostSession.Text * 1000)
         tmrPostSession.Enabled = True
     End Sub
 
@@ -1078,6 +1166,12 @@ Public Class Main
             Arduino.WriteLine("abht")
         End If
 
+
+        'If a component ends while a delay is active, invalidate delay annotation
+        DelayOnset(0) = -1 : DelayComp(0) = -1
+        DelayOnset(1) = -1 : DelayComp(1) = -1
+
+
         'Start the inter-component interval timer.
         tmrICI.Enabled = True
     End Sub
@@ -1163,7 +1257,6 @@ Public Class Main
         tmrCOD.Enabled = False
         CODL = 0
     End Sub
-
 
 
 End Class
