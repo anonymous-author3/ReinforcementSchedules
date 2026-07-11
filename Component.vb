@@ -3,15 +3,24 @@
 Public Class Component
 
     Private ComponentStimType As String = ""
-    Private ScheduleType1 As String = ""
-    Private ScheduleType2 As String = ""
-    Private FeedbackType1 As String = ""
-    Private FeedbackType2 As String = ""
-    Private DelayStimType1 As String = ""
-    Private DelayStimType2 As String = ""
     Private HouselightOnOff As Boolean = False
-    Private DelayRetract1 As Boolean = False
-    Private DelayRetract2 As Boolean = False
+    Private ReadOnly AddedInputs As New List(Of ComponentInputConfiguration)
+    Private ReadOnly ComponentToolTip As New ToolTip()
+
+    Private Class ComponentInputConfiguration
+        Public Property Name As String
+        Public Property ScheduleType As String
+        Public Property ScheduleValue As Integer
+        Public Property Reinforcer As String
+        Public Property Magnitude As Integer
+        Public Property PelletP As Integer
+        Public Property FeedbackDuration As Double
+        Public Property FeedbackType As String
+        Public Property DelayDuration As Double
+        Public Property DelayType As String
+        Public Property DelayRetract As Boolean
+        Public Property DelaySignalDuration As Double
+    End Class
 
     ' ---------- Helpers (sin casts implícitos) ----------
     Private Function Clean(s As String) As String
@@ -33,6 +42,8 @@ Public Class Component
         Dim s As String = Clean(txt)
         Dim n As Double
         If Double.TryParse(s, n) Then Return n
+        If Double.TryParse(s.Replace("."c, ","c), n) Then Return n
+        If Double.TryParse(s.Replace(","c, "."c), Globalization.NumberStyles.Float, Globalization.CultureInfo.InvariantCulture, n) Then Return n
         Return defaultValue
     End Function
 
@@ -53,10 +64,245 @@ Public Class Component
         Return s
     End Function
 
+    Private Function GetSelectedScheduleType() As String
+        If rdoFRL1.Checked Then Return "Fixed Ratio"
+        If rdoVRL1.Checked Then Return "Variable Ratio"
+        If rdoFIL1.Checked Then Return "Fixed Interval"
+        If rdoVIL1.Checked Then Return "Variable Interval"
+        Return "Extinction"
+    End Function
+
+    Private Function GetSelectedFeedbackType() As String
+        Dim selected As New List(Of String)
+        If rdoLight1L1.Checked Then selected.Add("Light 1")
+        If rdoLight2L1.Checked Then selected.Add("Light 2")
+        If rdoLight3L1.Checked Then selected.Add("Light 3")
+        If rdoLight4L1.Checked Then selected.Add("Light 4")
+        If rdoToneL1.Checked Then selected.Add("Tone")
+        If rdoHouselightL1.Checked Then selected.Add("Houselight")
+        If rdoTOL1.Checked Then selected.Add("Time Out")
+        If selected.Count = 0 Then Return "None"
+        Return String.Join(" + ", selected)
+    End Function
+
+    Private Function GetSelectedDelayType() As String
+        If chkUnsignaledDelay.Checked Then Return "Unsignaled"
+
+        Dim selected As New List(Of String)
+        If rdoLightDelay1L1.Checked Then selected.Add("Light 1")
+        If rdoLightDelay2L1.Checked Then selected.Add("Light 2")
+        If rdoLightDelay3L1.Checked Then selected.Add("Light 3")
+        If rdoLightDelay4L1.Checked Then selected.Add("Light 4")
+        If rdoToneDelayL1.Checked Then selected.Add("Tone")
+        If rdoHouselightDelayL1.Checked Then selected.Add("Houselight")
+        If selected.Count = 0 Then Return "None"
+        Return String.Join(" + ", selected)
+    End Function
+
+    Private Function GetSelectedComponentStimType() As String
+        Dim selected As New List(Of String)
+        If rdoComponentStimLight1.Checked Then selected.Add("Light 1")
+        If rdoComponentStimLight2.Checked Then selected.Add("Light 2")
+        If rdoComponentStimLight3.Checked Then selected.Add("Light 3")
+        If rdoComponentStimLight4.Checked Then selected.Add("Light 4")
+        If rdoComponentTone.Checked Then selected.Add("Tone")
+        If selected.Count = 0 Then Return "None"
+        Return String.Join(" + ", selected)
+    End Function
+
+    Private Function HasFeedbackSelection() As Boolean
+        Return rdoLight1L1.Checked OrElse rdoLight2L1.Checked OrElse rdoLight3L1.Checked OrElse rdoLight4L1.Checked OrElse rdoToneL1.Checked OrElse rdoHouselightL1.Checked OrElse rdoTOL1.Checked
+    End Function
+
+    Private Function HasDelaySelection() As Boolean
+        Return chkUnsignaledDelay.Checked OrElse rdoLightDelay1L1.Checked OrElse rdoLightDelay2L1.Checked OrElse rdoLightDelay3L1.Checked OrElse rdoLightDelay4L1.Checked OrElse rdoToneDelayL1.Checked OrElse rdoHouselightDelayL1.Checked
+    End Function
+
+    Private Function HasComponentLightSelection() As Boolean
+        Return rdoComponentStimLight1.Checked OrElse rdoComponentStimLight2.Checked OrElse rdoComponentStimLight3.Checked OrElse rdoComponentStimLight4.Checked
+    End Function
+
+    Private Sub UpdateFeedbackState()
+        Dim enabled As Boolean = HasFeedbackSelection()
+        txbStimDurL1.Enabled = enabled
+        txbStimDurL1.Visible = enabled
+        Label12.Visible = enabled
+    End Sub
+
+    Private Sub UpdateDelayState()
+        Dim enabled As Boolean = HasDelaySelection()
+        Dim signaled As Boolean = enabled AndAlso chkUnsignaledDelay.Checked = False
+
+        rdoLightDelay1L1.Enabled = chkUnsignaledDelay.Checked = False
+        rdoLightDelay2L1.Enabled = chkUnsignaledDelay.Checked = False
+        rdoLightDelay3L1.Enabled = chkUnsignaledDelay.Checked = False
+        rdoLightDelay4L1.Enabled = chkUnsignaledDelay.Checked = False
+        rdoToneDelayL1.Enabled = chkUnsignaledDelay.Checked = False
+        rdoHouselightDelayL1.Enabled = chkUnsignaledDelay.Checked = False
+
+        If chkUnsignaledDelay.Checked Then
+            rdoLightDelay1L1.Checked = False
+            rdoLightDelay2L1.Checked = False
+            rdoLightDelay3L1.Checked = False
+            rdoLightDelay4L1.Checked = False
+            rdoToneDelayL1.Checked = False
+            rdoHouselightDelayL1.Checked = False
+        End If
+
+        txbDelayDurL1.Enabled = enabled
+        txbDelaySignalDurationL1.Enabled = signaled
+        txbDelayDurL1.Visible = enabled
+        txbDelaySignalDurationL1.Visible = signaled
+        Label9.Visible = enabled
+        Label16.Visible = signaled
+        chkRetractL1.Visible = enabled
+        If enabled = False Then
+            chkRetractL1.Checked = False
+        End If
+        If signaled = False Then txbDelaySignalDurationL1.Text = "0"
+    End Sub
+
+    Private Sub UpdateComponentIntermittencyState()
+        txbLightIntermittency.Enabled = HasComponentLightSelection()
+        txbToneIntermittency.Enabled = rdoComponentTone.Checked
+
+        If HasComponentLightSelection() = False Then txbLightIntermittency.Text = "0"
+        If rdoComponentTone.Checked = False Then txbToneIntermittency.Text = "0"
+    End Sub
+
+    Private Function BuildInputFromEditor(inputNumber As Integer) As ComponentInputConfiguration
+        Dim inputName As String = ToStrSafe(txbInputName.Text, "Input " & inputNumber)
+        Dim scheduleType As String = GetSelectedScheduleType()
+
+        Return New ComponentInputConfiguration With {
+            .Name = inputName,
+            .ScheduleType = scheduleType,
+            .ScheduleValue = If(scheduleType = "Extinction", 0, ToIntSafe(txbValueL1.Text, 0)),
+            .Reinforcer = If(scheduleType = "Extinction", "N/A", ToStrSafe(cbbReinforcer1.Text, "Pellet")),
+            .Magnitude = If(scheduleType = "Extinction", 0, ToIntSafe(txbMagL1.Text, 0)),
+            .PelletP = If(scheduleType = "Extinction", 0, ToIntSafe(txbPelletProbability1.Text, 0)),
+            .FeedbackDuration = If(HasFeedbackSelection(), ToDoubleSafe(txbStimDurL1.Text, 1), 0),
+            .FeedbackType = GetSelectedFeedbackType(),
+            .DelayDuration = If(HasDelaySelection(), ToDoubleSafe(txbDelayDurL1.Text, 1), 0),
+            .DelayType = GetSelectedDelayType(),
+            .DelayRetract = chkRetractL1.Checked,
+            .DelaySignalDuration = If(chkUnsignaledDelay.Checked, 0, ToDoubleSafe(txbDelaySignalDurationL1.Text, 0))
+        }
+    End Function
+
+    Private Function BuildDefaultInput(inputNumber As Integer) As ComponentInputConfiguration
+        Return New ComponentInputConfiguration With {
+            .Name = "Input " & inputNumber,
+            .ScheduleType = "Extinction",
+            .ScheduleValue = 0,
+            .Reinforcer = "N/A",
+            .Magnitude = 1,
+            .PelletP = 0,
+            .FeedbackDuration = 0,
+            .FeedbackType = "None",
+            .DelayDuration = 1,
+            .DelayType = "None",
+            .DelayRetract = False,
+            .DelaySignalDuration = 1
+        }
+    End Function
+
+    Private Function InputSummary(inputInfo As ComponentInputConfiguration) As String
+        If inputInfo.ScheduleType = "Extinction" Then
+            Return inputInfo.Name & " - Extinction / N/A"
+        End If
+
+        Return inputInfo.Name & " - " & inputInfo.ScheduleType & " " & inputInfo.ScheduleValue &
+            " / " & inputInfo.Magnitude & " " & inputInfo.Reinforcer
+    End Function
+
+    Private Sub UpdateExtinctionState()
+        Dim isExtinction As Boolean = rdoExt1.Checked
+
+        txbValueL1.Enabled = Not isExtinction
+        grpMagnitude.Enabled = Not isExtinction
+
+        If isExtinction Then
+            txbValueL1.Text = ""
+            cbbReinforcer1.Text = ""
+            txbMagL1.Text = ""
+            txbPelletProbability1.Text = ""
+            txbPelletProbability1.Enabled = False
+        Else
+            If txbValueL1.Text = "" Then txbValueL1.Text = "0"
+            If cbbReinforcer1.Text = "" Then cbbReinforcer1.Text = "Pellet"
+            If txbMagL1.Text = "" Then txbMagL1.Text = "1"
+            If txbPelletProbability1.Text = "" Then txbPelletProbability1.Text = "0"
+            txbPelletProbability1.Enabled = (cbbReinforcer1.Text = "Random")
+        End If
+    End Sub
+
+    Private Sub ResetInputEditor()
+        txbInputName.Text = "Arduino Pin " & (AddedInputs.Count + 2)
+        rdoExt1.Checked = True
+        UpdateExtinctionState()
+        txbStimDurL1.Text = "1"
+        rdoLight1L1.Checked = False
+        rdoLight2L1.Checked = False
+        rdoLight3L1.Checked = False
+        rdoLight4L1.Checked = False
+        rdoToneL1.Checked = False
+        rdoHouselightL1.Checked = False
+        rdoTOL1.Checked = False
+        txbDelayDurL1.Text = "1"
+        chkRetractL1.Checked = False
+        chkUnsignaledDelay.Checked = False
+        rdoLightDelay1L1.Checked = False
+        rdoLightDelay2L1.Checked = False
+        rdoLightDelay3L1.Checked = False
+        rdoLightDelay4L1.Checked = False
+        rdoToneDelayL1.Checked = False
+        rdoHouselightDelayL1.Checked = False
+        txbDelaySignalDurationL1.Text = "0"
+        UpdateFeedbackState()
+        UpdateDelayState()
+    End Sub
+
+    Private Sub btnAddInput_Click(sender As Object, e As EventArgs) Handles btnAddInput.Click
+        If AddedInputs.Count >= MAX_INPUTS Then
+            MsgBox("This version supports up to " & MAX_INPUTS & " inputs.")
+            Exit Sub
+        End If
+
+        Dim inputInfo As ComponentInputConfiguration = BuildInputFromEditor(AddedInputs.Count + 1)
+        If inputInfo.ScheduleType <> "Extinction" Then
+            If inputInfo.ScheduleValue <= 0 Then
+                MsgBox("Please enter a schedule value greater than 0 for this input.")
+                Exit Sub
+            End If
+
+            If inputInfo.Reinforcer = "" OrElse inputInfo.Reinforcer = "N/A" Then
+                MsgBox("Please select a reinforcer for this input.")
+                Exit Sub
+            End If
+
+            If inputInfo.Magnitude <= 0 Then
+                MsgBox("Please enter a reinforcer magnitude greater than 0 for this input.")
+                Exit Sub
+            End If
+        End If
+
+        AddedInputs.Add(inputInfo)
+        lstInputs.Items.Add(InputSummary(inputInfo))
+
+        If AddedInputs.Count >= MAX_INPUTS Then
+            btnAddInput.Enabled = False
+            txbInputName.Enabled = False
+            GroupBox1.Enabled = False
+        Else
+            ResetInputEditor()
+        End If
+    End Sub
+
     Private Sub btnSubmit_Click(sender As Object, e As EventArgs) Handles btnSubmit.Click
 
         ' === Validaciones fuertes (parse real) ===
-        Dim componentDurationSec As Integer = ToIntSafe(txbComponentDuration.Text, -1)
+        Dim componentDurationSec As Double = ToDoubleSafe(txbComponentDuration.Text, -1)
         If componentDurationSec <= 0 Then
             MsgBox("Please input Component duration (must be > 0).")
             Exit Sub
@@ -68,174 +314,76 @@ Public Class Component
             Exit Sub
         End If
 
-        ' Estimulación del componente: puede ser 0 (always on)
-        Dim componentStimSec As Double
-        Dim stimTxt As String = Clean(txbComponentStimulation.Text)
-        If stimTxt = "" Then
-            MsgBox("Please input Component stimulation. Select 0 for always on.")
+        ComponentStimType = GetSelectedComponentStimType()
+        Dim componentLightIntermittencySec As Double = 0
+        Dim componentToneIntermittencySec As Double = 0
+        If HasComponentLightSelection() Then componentLightIntermittencySec = ToDoubleSafe(txbLightIntermittency.Text, 0)
+        If rdoComponentTone.Checked Then componentToneIntermittencySec = ToDoubleSafe(txbToneIntermittency.Text, 0)
+
+        If AddedInputs.Count = 0 Then
+            MsgBox("Please add at least one input before submitting the component.")
             Exit Sub
         End If
-        componentStimSec = ToDoubleSafe(stimTxt, 0)
-
-        ' === Tipo de estímulo del componente ===
-        ComponentStimType = ""
-        If rdoComponentStimLight1.Checked Then ComponentStimType = "Light 1"
-        If rdoComponentStimLight2.Checked Then ComponentStimType = "Light 2"
-        If rdoComponentTone.Checked Then ComponentStimType = "Tone"
-        If rdoComponentHouselight.Checked Then ComponentStimType = "Houselight"
-        If ComponentStimType = "" Then ComponentStimType = "None"
-
-        ' === Schedules ===
-        ScheduleType1 = ""
-        If rdoExt1.Checked Then ScheduleType1 = "Extinction"
-        If rdoFRL1.Checked Then ScheduleType1 = "Fixed Ratio"
-        If rdoVRL1.Checked Then ScheduleType1 = "Variable Ratio"
-        If rdoFIL1.Checked Then ScheduleType1 = "Fixed Interval"
-        If rdoVIL1.Checked Then ScheduleType1 = "Variable Interval"
-        If ScheduleType1 = "" Then ScheduleType1 = "Extinction"
-
-        ScheduleType2 = ""
-        If rdoExt2.Checked Then ScheduleType2 = "Extinction"
-        If rdoFRL2.Checked Then ScheduleType2 = "Fixed Ratio"
-        If rdoVRL2.Checked Then ScheduleType2 = "Variable Ratio"
-        If rdoFIL2.Checked Then ScheduleType2 = "Fixed Interval"
-        If rdoVIL2.Checked Then ScheduleType2 = "Variable Interval"
-        If ScheduleType2 = "" Then ScheduleType2 = "Extinction"
-
-        ' === Feedback ===
-        FeedbackType1 = ""
-        If rdoLight1L1.Checked Then FeedbackType1 = "Light 1"
-        If rdoLight2L1.Checked Then FeedbackType1 = "Light 2"
-        If rdoToneL1.Checked Then FeedbackType1 = "Tone"
-        If rdoHouselightL1.Checked Then FeedbackType1 = "Houselight"
-        If rdoTOL1.Checked Then FeedbackType1 = "Time Out"
-        If FeedbackType1 = "" Then FeedbackType1 = "None"
-
-        FeedbackType2 = ""
-        If rdoLight1L2.Checked Then FeedbackType2 = "Light 1"
-        If rdoLight2L2.Checked Then FeedbackType2 = "Light 2"
-        If rdoToneL2.Checked Then FeedbackType2 = "Tone"
-        If rdoHouselightL2.Checked Then FeedbackType2 = "Houselight"
-        If rdoTOL2.Checked Then FeedbackType2 = "Time Out"
-        If FeedbackType2 = "" Then FeedbackType2 = "None"
-
-        ' === Delay ===
-        DelayRetract1 = chkRetractL1.Checked
-        DelayStimType1 = ""
-        If rdoLightDelay1L1.Checked Then DelayStimType1 = "Light 1"
-        If rdoLightDelay2L1.Checked Then DelayStimType1 = "Light 2"
-        If rdoToneDelayL1.Checked Then DelayStimType1 = "Tone"
-        If rdoHouselightDelayL1.Checked Then DelayStimType1 = "Houselight"
-        If DelayStimType1 = "" Then DelayStimType1 = "None"
-
-        DelayRetract2 = chkRetractL2.Checked
-        DelayStimType2 = ""
-        If rdoLightDelay1L2.Checked Then DelayStimType2 = "Light 1"
-        If rdoLightDelay2L2.Checked Then DelayStimType2 = "Light 2"
-        If rdoToneDelayL2.Checked Then DelayStimType2 = "Tone"
-        If rdoHouselightDelayL2.Checked Then DelayStimType2 = "Houselight"
-        If DelayStimType2 = "" Then DelayStimType2 = "None"
 
         ' ===== Asignación a tu blueprint (tipos correctos) =====
+        AC(vCC).ComponentName = ToStrSafe(txbComponentName.Text, "Component " & vCC)
         AC(vCC).ComponentDuration = componentDurationSec
         AC(vCC).ComponentIteration = componentIterations
-        AC(vCC).ComponentStimDuration = componentStimSec
+        AC(vCC).ComponentLightIntermittency = componentLightIntermittencySec
+        AC(vCC).ComponentStimDuration = componentToneIntermittencySec
         AC(vCC).ComponentStimType = ComponentStimType
 
-        ' Arrays (2 levers)
-        ReDim AC(vCC).ScheduleType(1)
-        ReDim AC(vCC).ScheduleValue(1)
-        ReDim AC(vCC).Magnitude(1)
-        ReDim AC(vCC).Reinforcer(1)
-        ReDim AC(vCC).PelletP(1)
-        ReDim AC(vCC).FeedbackDuration(1)
-        ReDim AC(vCC).FeedbackType(1)
-        ReDim AC(vCC).DelayDuration(1)
-        ReDim AC(vCC).DelayType(1)
-        ReDim AC(vCC).DelayRetract(1)
-        ReDim AC(vCC).DelaySignalDuration(1)
+        AC(vCC).InputCount = Math.Min(AddedInputs.Count, MAX_INPUTS)
+
+        ReDim AC(vCC).InputName(MAX_INPUTS - 1)
+        ReDim AC(vCC).ScheduleType(MAX_INPUTS - 1)
+        ReDim AC(vCC).ScheduleValue(MAX_INPUTS - 1)
+        ReDim AC(vCC).Magnitude(MAX_INPUTS - 1)
+        ReDim AC(vCC).Reinforcer(MAX_INPUTS - 1)
+        ReDim AC(vCC).PelletP(MAX_INPUTS - 1)
+        ReDim AC(vCC).FeedbackDuration(MAX_INPUTS - 1)
+        ReDim AC(vCC).FeedbackType(MAX_INPUTS - 1)
+        ReDim AC(vCC).DelayDuration(MAX_INPUTS - 1)
+        ReDim AC(vCC).DelayType(MAX_INPUTS - 1)
+        ReDim AC(vCC).DelayRetract(MAX_INPUTS - 1)
+        ReDim AC(vCC).DelaySignalDuration(MAX_INPUTS - 1)
 
         ' OJO: tu array measured es Integer(), dimensionamos con Iteration (Byte) => se convierte a Integer sin problema
         ReDim AC(vCC).ComponentDuration_measured(CInt(componentIterations))
 
-        ' Lever 1
-        AC(vCC).ScheduleType(0) = ScheduleType1
-        AC(vCC).ScheduleValue(0) = ToIntSafe(txbValueL1.Text, 0)
+        Dim storedInputs(MAX_INPUTS - 1) As ComponentInputConfiguration
+        For i As Integer = 0 To MAX_INPUTS - 1
+            storedInputs(i) = BuildDefaultInput(i + 1)
+        Next
 
-        AC(vCC).Reinforcer(0) = ToStrSafe(cbbReinforcer1.Text, "Pellet")
-        AC(vCC).Magnitude(0) = ToIntSafe(txbMagL1.Text, 0)
-        AC(vCC).PelletP(0) = ToIntSafe(txbPelletProbability1.Text, 0)
+        For i As Integer = 0 To AC(vCC).InputCount - 1
+            storedInputs(i) = AddedInputs(i)
+        Next
 
-        AC(vCC).FeedbackDuration(0) = ToIntSafe(txbStimDurL1.Text, 0)
-        AC(vCC).FeedbackType(0) = FeedbackType1
-
-        AC(vCC).DelayDuration(0) = ToIntSafe(txbDelayDurL1.Text, 0)
-        AC(vCC).DelayType(0) = DelayStimType1
-        AC(vCC).DelayRetract(0) = DelayRetract1
-        AC(vCC).DelaySignalDuration(0) = ToIntSafe(txbDelaySignalDurationL1.Text, 0)
-
-        ' Lever 2
-        AC(vCC).ScheduleType(1) = ScheduleType2
-        AC(vCC).ScheduleValue(1) = ToIntSafe(txbValueL2.Text, 0)
-
-        AC(vCC).Reinforcer(1) = ToStrSafe(cbbReinforcer2.Text, "Pellet")
-        AC(vCC).Magnitude(1) = ToIntSafe(txbMagL2.Text, 0)
-        AC(vCC).PelletP(1) = ToIntSafe(txbPelletProbability2.Text, 0)
-
-        AC(vCC).FeedbackDuration(1) = ToIntSafe(txbStimDurL2.Text, 0)
-        AC(vCC).FeedbackType(1) = FeedbackType2
-
-        AC(vCC).DelayDuration(1) = ToIntSafe(txbDelayDurL2.Text, 0)
-        AC(vCC).DelayType(1) = DelayStimType2
-        AC(vCC).DelayRetract(1) = DelayRetract2
-        AC(vCC).DelaySignalDuration(1) = ToIntSafe(txbDelaySignalDurationL2.Text, 0)
+        For i As Integer = 0 To MAX_INPUTS - 1
+            AC(vCC).InputName(i) = storedInputs(i).Name
+            AC(vCC).ScheduleType(i) = storedInputs(i).ScheduleType
+            AC(vCC).ScheduleValue(i) = storedInputs(i).ScheduleValue
+            AC(vCC).Reinforcer(i) = storedInputs(i).Reinforcer
+            AC(vCC).Magnitude(i) = storedInputs(i).Magnitude
+            AC(vCC).PelletP(i) = storedInputs(i).PelletP
+            AC(vCC).FeedbackDuration(i) = storedInputs(i).FeedbackDuration
+            AC(vCC).FeedbackType(i) = storedInputs(i).FeedbackType
+            AC(vCC).DelayDuration(i) = storedInputs(i).DelayDuration
+            AC(vCC).DelayType(i) = storedInputs(i).DelayType
+            AC(vCC).DelayRetract(i) = storedInputs(i).DelayRetract
+            AC(vCC).DelaySignalDuration(i) = storedInputs(i).DelaySignalDuration
+        Next
 
         ' Global
         AC(vCC).HouselightOnOff = HouselightOnOff
 
-        Dim codSec As Integer = ToIntSafe(txbCOD.Text, 0)
+        Dim codSec As Double = ToDoubleSafe(txbCOD.Text, 0)
         AC(vCC).COD = CDbl(codSec) * 1000.0 ' tu COD es Double (ms)
 
         AC(vCC).MaxRefs = ToIntSafe(txbMaxRefs.Text, 0)
 
-        ' Preview bookkeeping
-        PreviewStartByComponent(vCC) = PreviewCounter
-
-        ' Preview printing (igual que tu versión)
-        PrintInfo(SetUp.lblComponent.Location.X, SetUp.lblComponent.Location.Y, "Component " & vCC)
-        PrintInfo(SetUp.lblComponentD.Location.X, SetUp.lblComponentD.Location.Y,
-                  AC(vCC).ComponentDuration & " seconds / " & AC(vCC).MaxRefs & " refs")
-        PrintInfo(SetUp.lblComponentI.Location.X, SetUp.lblComponentI.Location.Y, AC(vCC).ComponentIteration & " times")
-        PrintInfo(SetUp.lblComponentS.Location.X, SetUp.lblComponentS.Location.Y,
-                  AC(vCC).ComponentStimType & ": " & AC(vCC).ComponentStimDuration & " seconds")
-        PrintInfo(SetUp.lblCOD.Location.X, SetUp.lblCOD.Location.Y, (AC(vCC).COD / 1000) & " seconds")
-
-        PrintInfo(SetUp.lblSchedule1.Location.X, SetUp.lblSchedule1.Location.Y, AC(vCC).ScheduleType(0) & " " & AC(vCC).ScheduleValue(0))
-        PrintInfo(SetUp.lblMagnitude1.Location.X, SetUp.lblMagnitude1.Location.Y,
-                  AC(vCC).Magnitude(0) & " " & AC(vCC).Reinforcer(0) & " " & AC(vCC).PelletP(0))
-        PrintInfo(SetUp.lblFeedback1.Location.X, SetUp.lblFeedback1.Location.Y, AC(vCC).FeedbackType(0) & ": " & AC(vCC).FeedbackDuration(0) & " seconds")
-        PrintInfo(SetUp.lblDelay1.Location.X, SetUp.lblDelay1.Location.Y,
-                  AC(vCC).DelayType(0) & ": " & AC(vCC).DelayDuration(0) & " seconds - Ret: " & AC(vCC).DelayRetract(0) &
-                  vbCrLf & "/ signal: " & AC(vCC).DelaySignalDuration(0) & " seconds")
-
-        PrintInfo(SetUp.lblSchedule2.Location.X, SetUp.lblSchedule2.Location.Y, AC(vCC).ScheduleType(1) & " " & AC(vCC).ScheduleValue(1))
-        PrintInfo(SetUp.lblMagnitude2.Location.X, SetUp.lblMagnitude2.Location.Y,
-                  AC(vCC).Magnitude(1) & " " & AC(vCC).Reinforcer(1) & " " & AC(vCC).PelletP(1))
-        PrintInfo(SetUp.lblFeedback2.Location.X, SetUp.lblFeedback2.Location.Y, AC(vCC).FeedbackType(1) & ": " & AC(vCC).FeedbackDuration(1) & " seconds")
-        PrintInfo(SetUp.lblDelay2.Location.X, SetUp.lblDelay2.Location.Y,
-                  AC(vCC).DelayType(1) & ": " & AC(vCC).DelayDuration(1) & " seconds - Ret: " & AC(vCC).DelayRetract(1) &
-                  vbCrLf & " signal: " & AC(vCC).DelaySignalDuration(1) & " seconds")
-
-        For Each ctrl As Control In SetUp.Controls
-            Dim lb As Label = TryCast(ctrl, Label)
-            If lb IsNot Nothing AndAlso lb.Text IsNot Nothing AndAlso lb.Text.Contains("Component ") Then
-                lb.Font = New Font("Microsoft Sans Serif", 11.0!, FontStyle.Bold)
-            End If
-        Next
-
-        SetUp.Controls.Add(SetUp.LabelPreview(PreviewCounter))
-        PreviewCounter += 1
-        vPadding += 180
+        SetUp.RefreshComponentSummaryTable()
 
         If vCC >= 2 Then SetUp.CheckBox1.Enabled = True
 
@@ -243,24 +391,52 @@ Public Class Component
     End Sub
 
     Private Sub Component_Load(sender As Object, e As EventArgs) Handles MyBase.Load
-        Me.ClientSize = New Size(370, 570)
+        Me.AutoScroll = False
+        Me.StartPosition = FormStartPosition.CenterParent
+        GroupBox1.Text = "Input"
+        txbComponentName.Text = "Component " & vCC
+        ComponentToolTip.InitialDelay = 300
+        ComponentToolTip.ReshowDelay = 100
+        ComponentToolTip.AutoPopDelay = 7000
+        ComponentToolTip.SetToolTip(txbComponentDuration, "Component duration in seconds. Decimal values such as 1.5 are allowed.")
+        ComponentToolTip.SetToolTip(txbMaxRefs, "Maximum reinforcers for this component iteration. Reaching this number ends the current iteration; later iterations can deliver up to this maximum again.")
+        ComponentToolTip.SetToolTip(txbCOD, "Changeover delay in seconds. Decimal values such as 1.5 are allowed.")
+        ComponentToolTip.SetToolTip(cbbReinforcer1, "Select Random to use pellet probability P for this input's reinforcer.")
+        ComponentToolTip.SetToolTip(txbPelletProbability1, "Pellet probability P when Random is selected.")
+        ComponentToolTip.SetToolTip(txbStimDurL1, "Response feedback duration in seconds. Decimal values such as 1.5 are allowed.")
+        ComponentToolTip.SetToolTip(rdoTOL1, "Time Out stops component stimulation, turns off chamber stimuli, and retracts all active inputs for the feedback duration.")
+        ComponentToolTip.SetToolTip(txbDelayDurL1, "Delay duration in seconds. Decimal values such as 1.5 are allowed.")
+        ComponentToolTip.SetToolTip(txbDelaySignalDurationL1, "Delay signal duration in seconds. It may be shorter or longer than the programmed delay; equal/greater values keep the signal on for the whole delay.")
+        ComponentToolTip.SetToolTip(txbLightIntermittency, "0 keeps selected lights continuously on. Values greater than 0 set the on/off intermittency in seconds.")
+        ComponentToolTip.SetToolTip(txbToneIntermittency, "0 keeps the tone continuously on. Values greater than 0 set the on/off intermittency in seconds.")
+        ResetInputEditor()
+        UpdateComponentIntermittencyState()
     End Sub
 
     Private Sub chkHouselightOnOff_CheckedChanged(sender As Object, e As EventArgs) Handles chkHouselightOnOff.CheckedChanged
         HouselightOnOff = chkHouselightOnOff.Checked
     End Sub
 
+    Private Sub Schedule_CheckedChanged(sender As Object, e As EventArgs) Handles rdoExt1.CheckedChanged, rdoFRL1.CheckedChanged, rdoVRL1.CheckedChanged, rdoFIL1.CheckedChanged, rdoVIL1.CheckedChanged
+        UpdateExtinctionState()
+    End Sub
+
     ' Cancel: limpia slot y baja contador (evita componentes a medias)
     Private Sub btnClose_Click(sender As Object, e As EventArgs) Handles btnClose.Click
         If vCC >= 1 Then
             AC(vCC) = New ComponentBlueprint
-            PreviewStartByComponent(vCC) = 0
             vCC -= 1
         End If
         Me.Close()
     End Sub
 
     Private Sub cbbReinforcer1_SelectedIndexChanged(sender As Object, e As EventArgs) Handles cbbReinforcer1.SelectedIndexChanged
+        If rdoExt1.Checked Then
+            txbPelletProbability1.Text = ""
+            txbPelletProbability1.Enabled = False
+            Exit Sub
+        End If
+
         If cbbReinforcer1.Text = "Random" Then
             txbPelletProbability1.Text = "50"
             txbPelletProbability1.Enabled = True
@@ -270,14 +446,17 @@ Public Class Component
         End If
     End Sub
 
-    Private Sub cbbReinforcer2_SelectedIndexChanged(sender As Object, e As EventArgs) Handles cbbReinforcer2.SelectedIndexChanged
-        If cbbReinforcer2.Text = "Random" Then
-            txbPelletProbability2.Text = "50"
-            txbPelletProbability2.Enabled = True
-        Else
-            txbPelletProbability2.Text = "0"
-            txbPelletProbability2.Enabled = False
-        End If
+    Private Sub Feedback_CheckedChanged(sender As Object, e As EventArgs) Handles rdoLight1L1.CheckedChanged, rdoLight2L1.CheckedChanged, rdoLight3L1.CheckedChanged, rdoLight4L1.CheckedChanged, rdoToneL1.CheckedChanged, rdoHouselightL1.CheckedChanged, rdoTOL1.CheckedChanged
+        UpdateFeedbackState()
     End Sub
+
+    Private Sub Delay_CheckedChanged(sender As Object, e As EventArgs) Handles chkUnsignaledDelay.CheckedChanged, rdoLightDelay1L1.CheckedChanged, rdoLightDelay2L1.CheckedChanged, rdoLightDelay3L1.CheckedChanged, rdoLightDelay4L1.CheckedChanged, rdoToneDelayL1.CheckedChanged, rdoHouselightDelayL1.CheckedChanged
+        UpdateDelayState()
+    End Sub
+
+    Private Sub ComponentStim_CheckedChanged(sender As Object, e As EventArgs) Handles rdoComponentTone.CheckedChanged, rdoComponentStimLight1.CheckedChanged, rdoComponentStimLight2.CheckedChanged, rdoComponentStimLight3.CheckedChanged, rdoComponentStimLight4.CheckedChanged
+        UpdateComponentIntermittencyState()
+    End Sub
+
 
 End Class

@@ -1,5 +1,305 @@
 ﻿Public Class SetUp
-    Public LabelPreview(60) As Label
+    Private ReadOnly SetUpToolTip As New ToolTip()
+
+    Private Sub WriteConfigLine(fileNumber As Integer, label As String, value As Object)
+        WriteLine(fileNumber, label & ": " & CStr(value))
+    End Sub
+
+    Private Function ReadConfigValue(reader As System.IO.TextReader) As String
+        Dim line As String = reader.ReadLine()
+        If line Is Nothing Then Throw New System.IO.InvalidDataException("Unexpected end of configuration file.")
+
+        Dim separatorIndex As Integer = line.IndexOf(":"c)
+        If separatorIndex >= 0 Then Return line.Substring(separatorIndex + 1).Replace("""", "").Replace("#", "").Trim()
+
+        Return line.Replace("""", "").Replace("#", "").Trim()
+    End Function
+
+    Private Function ComponentBlueprintClone(source As ComponentBlueprint) As ComponentBlueprint
+        Dim copy As ComponentBlueprint = source
+        If source.ComponentDuration_measured IsNot Nothing Then copy.ComponentDuration_measured = DirectCast(source.ComponentDuration_measured.Clone(), Integer())
+        If source.InputName IsNot Nothing Then copy.InputName = DirectCast(source.InputName.Clone(), String())
+        If source.ScheduleType IsNot Nothing Then copy.ScheduleType = DirectCast(source.ScheduleType.Clone(), String())
+        If source.ScheduleValue IsNot Nothing Then copy.ScheduleValue = DirectCast(source.ScheduleValue.Clone(), Integer())
+        If source.Magnitude IsNot Nothing Then copy.Magnitude = DirectCast(source.Magnitude.Clone(), Integer())
+        If source.Reinforcer IsNot Nothing Then copy.Reinforcer = DirectCast(source.Reinforcer.Clone(), String())
+        If source.PelletP IsNot Nothing Then copy.PelletP = DirectCast(source.PelletP.Clone(), Integer())
+        If source.FeedbackDuration IsNot Nothing Then copy.FeedbackDuration = DirectCast(source.FeedbackDuration.Clone(), Double())
+        If source.FeedbackType IsNot Nothing Then copy.FeedbackType = DirectCast(source.FeedbackType.Clone(), String())
+        If source.DelayDuration IsNot Nothing Then copy.DelayDuration = DirectCast(source.DelayDuration.Clone(), Double())
+        If source.DelaySignalDuration IsNot Nothing Then copy.DelaySignalDuration = DirectCast(source.DelaySignalDuration.Clone(), Double())
+        If source.DelayType IsNot Nothing Then copy.DelayType = DirectCast(source.DelayType.Clone(), String())
+        If source.DelayRetract IsNot Nothing Then copy.DelayRetract = DirectCast(source.DelayRetract.Clone(), Boolean())
+        Return copy
+    End Function
+
+    Private Function SnapshotComponents() As ComponentBlueprint()
+        Dim snapshot(AC.Length - 1) As ComponentBlueprint
+        For i As Integer = 0 To AC.Length - 1
+            snapshot(i) = ComponentBlueprintClone(AC(i))
+        Next
+        Return snapshot
+    End Function
+
+    Private Sub RestoreComponents(snapshot() As ComponentBlueprint)
+        For i As Integer = 0 To Math.Min(AC.Length, snapshot.Length) - 1
+            AC(i) = ComponentBlueprintClone(snapshot(i))
+        Next
+    End Sub
+
+    Private Function ConfigValueFromLine(line As String) As String
+        If line Is Nothing Then Return ""
+
+        Dim separatorIndex As Integer = line.IndexOf(":"c)
+        If separatorIndex >= 0 Then Return line.Substring(separatorIndex + 1).Replace("""", "").Replace("#", "").Trim()
+
+        Return line.Replace("""", "").Replace("#", "").Trim()
+    End Function
+
+    Private Function ConfigLineStartsWith(line As String, label As String) As Boolean
+        If line Is Nothing Then Return False
+
+        Return line.Trim().Trim(""""c).StartsWith(label, StringComparison.OrdinalIgnoreCase)
+    End Function
+
+    Private Function BoolFromConfig(value As String) As Boolean
+        Return value.Trim().Replace("#", "").Equals("True", StringComparison.OrdinalIgnoreCase)
+    End Function
+
+    Private Function IntFromText(value As String, defaultValue As Integer) As Integer
+        Dim parsed As Integer
+        If Integer.TryParse(value, parsed) Then Return parsed
+        Return defaultValue
+    End Function
+
+    Public Function ICIDurationSeconds() As Integer
+        If chkICIEnabled.Checked = False Then Return 0
+        Return Math.Max(0, IntFromText(txbICI.Text, 0))
+    End Function
+
+    Public Function ICIRetractInputs() As Boolean
+        Return chkICIEnabled.Checked AndAlso chkICIRetractInputs.Checked
+    End Function
+
+    Public Function ICIStimulusType() As String
+        Dim selected As New List(Of String)
+
+        If chkICILight1.Checked Then selected.Add("Light 1")
+        If chkICILight2.Checked Then selected.Add("Light 2")
+        If chkICILight3.Checked Then selected.Add("Light 3")
+        If chkICILight4.Checked Then selected.Add("Light 4")
+        If chkICITone.Checked Then selected.Add("Tone")
+        If chkICIHouselight.Checked Then selected.Add("Houselight")
+
+        If selected.Count = 0 Then Return "None"
+        Return String.Join(" + ", selected)
+    End Function
+
+    Private Sub ApplyICIStimulusType(stimulusType As String)
+        If stimulusType Is Nothing Then stimulusType = ""
+
+        chkICILight1.Checked = stimulusType.Contains("Light 1")
+        chkICILight2.Checked = stimulusType.Contains("Light 2")
+        chkICILight3.Checked = stimulusType.Contains("Light 3")
+        chkICILight4.Checked = stimulusType.Contains("Light 4")
+        chkICITone.Checked = stimulusType.Contains("Tone")
+        chkICIHouselight.Checked = stimulusType.Contains("Houselight")
+    End Sub
+
+    Private Sub UpdateICIState()
+        grpICI.Visible = chkICIEnabled.Checked
+    End Sub
+
+    Private Sub UpdateComponentOrderState()
+        txbComponentOrder.Enabled = CheckBox1.Checked = False
+        If CheckBox1.Checked Then txbComponentOrder.Text = ""
+    End Sub
+
+    Public Function ManualComponentSequence() As List(Of Integer)
+        Dim sequenceText As String = If(txbComponentOrder.Text, "").Trim()
+        If sequenceText = "" Then Return Nothing
+
+        Dim sequence As New List(Of Integer)
+        Dim parts() As String = sequenceText.Split(New Char() {","c, ";"c, " "c, vbTab}, StringSplitOptions.RemoveEmptyEntries)
+        Dim componentLimit As Integer = If(MAXvCC > 0, MAXvCC, vCC)
+
+        For Each part As String In parts
+            Dim componentIndex As Integer
+            If Integer.TryParse(part.Trim(), componentIndex) = False OrElse componentIndex < 1 OrElse componentIndex > componentLimit Then
+                Return Nothing
+            End If
+            sequence.Add(componentIndex)
+        Next
+
+        If sequence.Count = 0 Then Return Nothing
+        Return sequence
+    End Function
+
+    Private Function ManualComponentSequenceIsValid() As Boolean
+        Return ManualComponentSequenceValidationError() = ""
+    End Function
+
+    Private Function ManualComponentSequenceValidationError() As String
+        If If(txbComponentOrder.Text, "").Trim() = "" Then Return ""
+
+        Dim sequence As List(Of Integer) = ManualComponentSequence()
+        If sequence Is Nothing Then
+            Return "The component order list is invalid. Use component numbers between 1 and " & vCC & ", separated by commas or spaces."
+        End If
+
+        Dim expectedCounts(vCC) As Integer
+        Dim actualCounts(vCC) As Integer
+        Dim expectedTotal As Integer = 0
+
+        For componentIndex As Integer = 1 To vCC
+            expectedCounts(componentIndex) = Math.Max(0, CInt(AC(componentIndex).ComponentIteration))
+            expectedTotal += expectedCounts(componentIndex)
+        Next
+
+        If sequence.Count <> expectedTotal Then
+            Return "The component order list has " & sequence.Count & " presentations, but the programmed component iterations require " & expectedTotal & ". Please list every programmed presentation."
+        End If
+
+        For Each componentIndex As Integer In sequence
+            actualCounts(componentIndex) += 1
+        Next
+
+        For componentIndex As Integer = 1 To vCC
+            If actualCounts(componentIndex) <> expectedCounts(componentIndex) Then
+                Return "Component " & componentIndex & " appears " & actualCounts(componentIndex) & " time(s) in the order list, but it is programmed for " & expectedCounts(componentIndex) & " iteration(s)."
+            End If
+        Next
+
+        Return ""
+    End Function
+
+    Private Sub ApplyManualComponentSequence(sequence As List(Of Integer))
+        If sequence Is Nothing Then Exit Sub
+
+        Dim counts(MAXvCC) As Integer
+        For Each componentIndex As Integer In sequence
+            counts(componentIndex) += 1
+        Next
+
+        For i = 1 To MAXvCC
+            AC(i).ComponentIteration = CByte(Math.Min(255, counts(i)))
+            AC(i).IterationsLeft = AC(i).ComponentIteration
+            ReDim AC(i).ComponentDuration_measured(AC(i).ComponentIteration)
+        Next
+    End Sub
+
+    Private Function ComponentDisplayName(componentIndex As Integer) As String
+        If AC(componentIndex).ComponentName <> "" Then Return AC(componentIndex).ComponentName
+        Return "Component " & componentIndex
+    End Function
+
+    Private Function IsExtinction(componentIndex As Integer, inputIndex As Integer) As Boolean
+        Return AC(componentIndex).ScheduleType(inputIndex) = "Extinction"
+    End Function
+
+    Private Function ScheduleDisplay(componentIndex As Integer, inputIndex As Integer) As String
+        If IsExtinction(componentIndex, inputIndex) Then Return "Extinction"
+        Return AC(componentIndex).ScheduleType(inputIndex) & " " & AC(componentIndex).ScheduleValue(inputIndex)
+    End Function
+
+    Private Function ReinforcerDisplay(componentIndex As Integer, inputIndex As Integer) As String
+        If IsExtinction(componentIndex, inputIndex) Then Return "N/A"
+
+        Dim reinforcer As String = AC(componentIndex).Reinforcer(inputIndex)
+        Dim displayText As String = AC(componentIndex).Magnitude(inputIndex) & " " & reinforcer
+
+        If reinforcer = "Random" Then
+            displayText &= " (" & AC(componentIndex).PelletP(inputIndex) & "% pellet)"
+        End If
+
+        Return displayText
+    End Function
+
+    Private Function FeedbackDisplay(componentIndex As Integer, inputIndex As Integer) As String
+        If AC(componentIndex).FeedbackType(inputIndex) = "" OrElse AC(componentIndex).FeedbackType(inputIndex) = "None" Then Return ""
+        If AC(componentIndex).FeedbackDuration(inputIndex) <= 0 Then Return ""
+        Return AC(componentIndex).FeedbackType(inputIndex) & " / " & AC(componentIndex).FeedbackDuration(inputIndex) & " s"
+    End Function
+
+    Private Function DelayDisplay(componentIndex As Integer, inputIndex As Integer) As String
+        Dim hasDelayType As Boolean = AC(componentIndex).DelayType(inputIndex) <> "" AndAlso AC(componentIndex).DelayType(inputIndex) <> "None"
+        Dim hasDelayTiming As Boolean = AC(componentIndex).DelayDuration(inputIndex) > 0 OrElse AC(componentIndex).DelaySignalDuration(inputIndex) > 0
+
+        If hasDelayType = False AndAlso hasDelayTiming = False AndAlso AC(componentIndex).DelayRetract(inputIndex) = False Then Return ""
+
+        If AC(componentIndex).DelayType(inputIndex) = "Unsignaled" Then
+            Return "Unsignaled / " & AC(componentIndex).DelayDuration(inputIndex) & " s / Ret: " & AC(componentIndex).DelayRetract(inputIndex)
+        End If
+
+        Return AC(componentIndex).DelayType(inputIndex) & " / " & AC(componentIndex).DelayDuration(inputIndex) & " s / Ret: " & AC(componentIndex).DelayRetract(inputIndex) & " / Signal: " & AC(componentIndex).DelaySignalDuration(inputIndex) & " s"
+    End Function
+
+    Private Sub AddSummaryRow(label As String, ParamArray values() As String)
+        Dim rowIndex As Integer = dgvComponentSummary.Rows.Add()
+        dgvComponentSummary.Rows(rowIndex).Cells(0).Value = label
+
+        For componentIndex As Integer = 1 To values.Length
+            dgvComponentSummary.Rows(rowIndex).Cells(componentIndex).Value = values(componentIndex - 1)
+        Next
+    End Sub
+
+    Public Sub RefreshComponentSummaryTable()
+        dgvComponentSummary.Columns.Clear()
+        dgvComponentSummary.Rows.Clear()
+        dgvComponentSummary.Columns.Add("Property", "Property")
+
+        For componentIndex As Integer = 1 To vCC
+            dgvComponentSummary.Columns.Add("Component" & componentIndex, "Component " & componentIndex)
+        Next
+
+        If vCC <= 0 Then Exit Sub
+
+        AddSummaryRow("Component name", Enumerable.Range(1, vCC).Select(Function(i) ComponentDisplayName(i)).ToArray())
+        AddSummaryRow("Duration (s)", Enumerable.Range(1, vCC).Select(Function(i) CStr(AC(i).ComponentDuration)).ToArray())
+        AddSummaryRow("Iterations", Enumerable.Range(1, vCC).Select(Function(i) CStr(AC(i).ComponentIteration)).ToArray())
+        AddSummaryRow("Stimulus", Enumerable.Range(1, vCC).Select(Function(i) AC(i).ComponentStimType).ToArray())
+        AddSummaryRow("Light intermittency (s)", Enumerable.Range(1, vCC).Select(Function(i) CStr(AC(i).ComponentLightIntermittency)).ToArray())
+        AddSummaryRow("Tone intermittency (s)", Enumerable.Range(1, vCC).Select(Function(i) CStr(AC(i).ComponentStimDuration)).ToArray())
+        AddSummaryRow("COD (s)", Enumerable.Range(1, vCC).Select(Function(i) CStr(AC(i).COD / 1000)).ToArray())
+        AddSummaryRow("Max reinforcers", Enumerable.Range(1, vCC).Select(Function(i) CStr(AC(i).MaxRefs)).ToArray())
+        AddSummaryRow("Input count", Enumerable.Range(1, vCC).Select(Function(i) CStr(AC(i).InputCount)).ToArray())
+
+        For inputIndex As Integer = 0 To MAX_INPUTS - 1
+            Dim currentInput As Integer = inputIndex
+            Dim hasAnyInput As Boolean = False
+            For componentIndex As Integer = 1 To vCC
+                If currentInput < AC(componentIndex).InputCount Then hasAnyInput = True
+            Next
+            If hasAnyInput = False Then Continue For
+
+            AddSummaryRow("Input " & (currentInput + 1) & " name",
+                          Enumerable.Range(1, vCC).Select(Function(i) If(currentInput < AC(i).InputCount, AC(i).InputName(currentInput), "")).ToArray())
+            AddSummaryRow("Input " & (currentInput + 1) & " schedule",
+                          Enumerable.Range(1, vCC).Select(Function(i) If(currentInput < AC(i).InputCount, ScheduleDisplay(i, currentInput), "")).ToArray())
+            AddSummaryRow("Input " & (currentInput + 1) & " reinforcer",
+                          Enumerable.Range(1, vCC).Select(Function(i) If(currentInput < AC(i).InputCount, ReinforcerDisplay(i, currentInput), "")).ToArray())
+
+            Dim feedbackValues() As String = Enumerable.Range(1, vCC).Select(Function(i) If(currentInput < AC(i).InputCount, FeedbackDisplay(i, currentInput), "")).ToArray()
+            If feedbackValues.Any(Function(value) value <> "") Then AddSummaryRow("Input " & (currentInput + 1) & " feedback", feedbackValues)
+
+            Dim delayValues() As String = Enumerable.Range(1, vCC).Select(Function(i) If(currentInput < AC(i).InputCount, DelayDisplay(i, currentInput), "")).ToArray()
+            If delayValues.Any(Function(value) value <> "") Then AddSummaryRow("Input " & (currentInput + 1) & " delay", delayValues)
+        Next
+    End Sub
+
+    Private Sub SetUp_Load(sender As Object, e As EventArgs) Handles MyBase.Load
+        SetUpToolTip.InitialDelay = 300
+        SetUpToolTip.ReshowDelay = 100
+        SetUpToolTip.AutoPopDelay = 7000
+        SetUpToolTip.SetToolTip(chkICIEnabled, "Use an inter-component interval between components. If unchecked, the session moves directly to the next component or ends.")
+        SetUpToolTip.SetToolTip(CheckBox1, "Randomizes component presentation using the programmed component iterations.")
+        SetUpToolTip.SetToolTip(txbStart, "Pre-session period in seconds before the first component starts, useful for habituation.")
+        SetUpToolTip.SetToolTip(txbPostSession, "Post-session period in seconds after the session ends, useful as a resting period.")
+        SetUpToolTip.SetToolTip(txbComponentOrder, "Optional explicit component order, e.g., 1,2,1,3. Leave blank to use the order components were added.")
+        UpdateICIState()
+        UpdateComponentOrderState()
+        RefreshComponentSummaryTable()
+    End Sub
 
     Private Sub btnComenzar_Click(sender As Object, e As EventArgs) Handles btnComenzar.Click
         Dim ask As MsgBoxResult = MsgBox("Did you test everything?", MsgBoxStyle.YesNo)
@@ -18,6 +318,12 @@
                 End If
             Next
 
+            Dim componentOrderError As String = ManualComponentSequenceValidationError()
+            If componentOrderError <> "" Then
+                MessageBox.Show(componentOrderError)
+                Exit Sub
+            End If
+
             If txbPostSession.Text = "" Then txbPostSession.Text = 0
             If txbStart.Text = "" Then txbStart.Text = 0
 
@@ -28,44 +334,47 @@
 
                 vFile(0) = "C:\Data\Raw\" & txtSubject.Text & "_" & txtSession.Text & "_Raw.txt"
                 vFile(1) = "C:\Data\Summary\" & txtSubject.Text & "_" & txtSession.Text & "Summary.txt"
+                FileClose(1)
+                FileClose(2)
                 FileOpen(1, vFile(0), OpenMode.Append)
                 FileOpen(2, vFile(1), OpenMode.Append)
-                WriteLine(1, Format(Date.Now, "dd-MM-yyyy_hh-mm-ss"))
-                WriteLine(1, "Subject: " & txtSubject.Text)
-                WriteLine(1, "Session: " & txtSession.Text)
-                WriteLine(1, "Weight: " & txtWeight.Text)
-                WriteLine(1, "COM Port: " & txtCOM.Text)
                 WriteLine(2, Format(Date.Now, "dd-MM-yyyy_hh-mm-ss"))
                 WriteLine(2, "Subject: " & txtSubject.Text)
                 WriteLine(2, "Session: " & txtSession.Text)
                 WriteLine(2, "Weight: " & txtWeight.Text)
                 WriteLine(2, "COM Port: " & txtCOM.Text)
-                WriteLine(1, "Lever 1 response: 1")
-                WriteLine(1, "Lever 2 response: 2")
-                WriteLine(1, "Tray response: 3")
-                WriteLine(1, "Lever 1 reinforcer: R1")
-                WriteLine(1, "Lever 2 reinforcer: R2")
-                WriteLine(1, "Lever 1 r on Delay: D1")
-                WriteLine(1, "Lever 2 r on Delay: D2")
-                WriteLine(1, "Tray r on Delay: D3")
                 MAXvCC = vCC
+                For inputIndex As Integer = 0 To MAX_INPUTS - 1
+                    WriteLine(2, "Input " & (inputIndex + 1) & " response: " & (inputIndex + 1))
+                    WriteLine(2, "Input " & (inputIndex + 1) & " reinforcer: R" & (inputIndex + 1))
+                    WriteLine(2, "Input " & (inputIndex + 1) & " r on Delay: D" & (inputIndex + 1))
+                Next
                 vCC = 1
                 For i = 1 To MAXvCC
                     AC(i).IterationsLeft = AC(i).ComponentIteration
                     ReDim AC(i).ComponentDuration_measured(AC(i).ComponentIteration)
                 Next
+                ApplyManualComponentSequence(ManualComponentSequence())
 
 
                 Dim x As New Main
-                WindowState = FormWindowState.Minimized
                 x.Show()
-                x.ArduinoVB()
+                If x.ArduinoVB() = False Then
+                    FileClose(1)
+                    FileClose(2)
+                    Exit Sub
+                End If
 
             End If
         End If
     End Sub
 
     Private Sub btnAddComponent_Click(sender As Object, e As EventArgs) Handles btnAddComponent.Click
+        If vCC >= MAX_COMPONENTS Then
+            MessageBox.Show("This version supports up to " & MAX_COMPONENTS & " components.")
+            Exit Sub
+        End If
+
         Dim f As New Component
         vCC += 1
         f.Text = "Component " & vCC
@@ -75,6 +384,11 @@
     Private Sub CheckBox1_CheckedChanged(sender As Object, e As EventArgs) Handles CheckBox1.CheckedChanged
         If CheckBox1.Checked = True Then RandomCPres = True
         If CheckBox1.Checked = False Then RandomCPres = False
+        UpdateComponentOrderState()
+    End Sub
+
+    Private Sub chkICIEnabled_CheckedChanged(sender As Object, e As EventArgs) Handles chkICIEnabled.CheckedChanged
+        UpdateICIState()
     End Sub
 
     Private Sub btnTests_Click(sender As Object, e As EventArgs) Handles btnTests.Click
@@ -86,42 +400,43 @@
         If vCC > 0 Then
             vFile(2) = "C:\SavedPrograms\NewProgram(Rename me please)_" & Strings.Right(CStr(Environment.TickCount), 5) & ".txt"
             FileOpen(3, vFile(2), OpenMode.Append)
-            WriteLine(3, Format(Date.Now, "dd-MM-yyyy_hh-mm-ss"))
-            WriteLine(3, vCC)
-            WriteLine(3, txbStart.Text)
-            WriteLine(3, txbPostSession.Text)
-            WriteLine(3, txbICI.Text)
-            WriteLine(3, CheckBox1.Checked)
+            WriteConfigLine(3, "Saved At", Format(Date.Now, "dd-MM-yyyy_hh-mm-ss"))
+            WriteConfigLine(3, "Component Count", vCC)
+            WriteConfigLine(3, "COM Port", txtCOM.Text)
+            WriteConfigLine(3, "Start Delay Seconds", txbStart.Text)
+            WriteConfigLine(3, "Post Session Seconds", txbPostSession.Text)
+            WriteConfigLine(3, "Inter Component Interval Seconds", txbICI.Text)
+            WriteConfigLine(3, "Inter Component Interval Enabled", chkICIEnabled.Checked)
+            WriteConfigLine(3, "Inter Component Interval Retract Inputs", chkICIRetractInputs.Checked)
+            WriteConfigLine(3, "Inter Component Interval Stimulus Type", ICIStimulusType())
+            WriteConfigLine(3, "Random Component Presentation", CheckBox1.Checked)
+            WriteConfigLine(3, "Component Presentation Order", txbComponentOrder.Text)
             For i = 1 To vCC
-                WriteLine(3, AC(i).HouselightOnOff)
-                WriteLine(3, AC(i).COD)
-                WriteLine(3, AC(i).MaxRefs)
-                WriteLine(3, AC(i).ComponentDuration)
-                WriteLine(3, AC(i).ComponentIteration)
-                WriteLine(3, AC(i).ComponentStimDuration)
-                WriteLine(3, AC(i).ComponentStimType)
-                WriteLine(3, AC(i).ScheduleType(0))
-                WriteLine(3, AC(i).ScheduleType(1))
-                WriteLine(3, AC(i).ScheduleValue(0))
-                WriteLine(3, AC(i).ScheduleValue(1))
-                WriteLine(3, AC(i).Magnitude(0))
-                WriteLine(3, AC(i).Magnitude(1))
-                WriteLine(3, AC(i).Reinforcer(0))
-                WriteLine(3, AC(i).Reinforcer(1))
-                WriteLine(3, AC(i).PelletP(0))
-                WriteLine(3, AC(i).PelletP(1))
-                WriteLine(3, AC(i).FeedbackDuration(0))
-                WriteLine(3, AC(i).FeedbackDuration(1))
-                WriteLine(3, AC(i).FeedbackType(0))
-                WriteLine(3, AC(i).FeedbackType(1))
-                WriteLine(3, AC(i).DelayDuration(0))
-                WriteLine(3, AC(i).DelayDuration(1))
-                WriteLine(3, AC(i).DelayType(0))
-                WriteLine(3, AC(i).DelayType(1))
-                WriteLine(3, AC(i).DelayRetract(0))
-                WriteLine(3, AC(i).DelayRetract(1))
-                WriteLine(3, AC(i).DelaySignalDuration(0))
-                WriteLine(3, AC(i).DelaySignalDuration(1))
+                WriteConfigLine(3, "Component " & i & " Houselight On Off", AC(i).HouselightOnOff)
+                WriteConfigLine(3, "Component " & i & " Changeover Delay Ms", AC(i).COD)
+                WriteConfigLine(3, "Component " & i & " Max Reinforcers", AC(i).MaxRefs)
+                WriteConfigLine(3, "Component " & i & " Name", ComponentDisplayName(i))
+                WriteConfigLine(3, "Component " & i & " Duration Seconds", AC(i).ComponentDuration)
+                WriteConfigLine(3, "Component " & i & " Iterations", AC(i).ComponentIteration)
+                WriteConfigLine(3, "Component " & i & " Light Intermittency Seconds", AC(i).ComponentLightIntermittency)
+                WriteConfigLine(3, "Component " & i & " Tone Intermittency Seconds", AC(i).ComponentStimDuration)
+                WriteConfigLine(3, "Component " & i & " Stimulus Type", AC(i).ComponentStimType)
+                WriteConfigLine(3, "Component " & i & " Input Count", AC(i).InputCount)
+                For inputIndex As Integer = 0 To AC(i).InputCount - 1
+                    Dim extinction As Boolean = IsExtinction(i, inputIndex)
+                    WriteConfigLine(3, "Component " & i & " Input " & (inputIndex + 1) & " Name", AC(i).InputName(inputIndex))
+                    WriteConfigLine(3, "Component " & i & " Input " & (inputIndex + 1) & " Schedule Type", AC(i).ScheduleType(inputIndex))
+                    WriteConfigLine(3, "Component " & i & " Input " & (inputIndex + 1) & " Schedule Value", If(extinction, "N/A", CStr(AC(i).ScheduleValue(inputIndex))))
+                    WriteConfigLine(3, "Component " & i & " Input " & (inputIndex + 1) & " Reinforcer Magnitude", If(extinction, "N/A", CStr(AC(i).Magnitude(inputIndex))))
+                    WriteConfigLine(3, "Component " & i & " Input " & (inputIndex + 1) & " Reinforcer Type", If(extinction, "N/A", AC(i).Reinforcer(inputIndex)))
+                    WriteConfigLine(3, "Component " & i & " Input " & (inputIndex + 1) & " Pellet Probability", If(extinction, "N/A", CStr(AC(i).PelletP(inputIndex))))
+                    WriteConfigLine(3, "Component " & i & " Input " & (inputIndex + 1) & " Feedback Duration Seconds", AC(i).FeedbackDuration(inputIndex))
+                    WriteConfigLine(3, "Component " & i & " Input " & (inputIndex + 1) & " Feedback Type", AC(i).FeedbackType(inputIndex))
+                    WriteConfigLine(3, "Component " & i & " Input " & (inputIndex + 1) & " Delay Duration Seconds", AC(i).DelayDuration(inputIndex))
+                    WriteConfigLine(3, "Component " & i & " Input " & (inputIndex + 1) & " Delay Type", AC(i).DelayType(inputIndex))
+                    WriteConfigLine(3, "Component " & i & " Input " & (inputIndex + 1) & " Delay Retract", AC(i).DelayRetract(inputIndex))
+                    WriteConfigLine(3, "Component " & i & " Input " & (inputIndex + 1) & " Delay Signal Duration Seconds", AC(i).DelaySignalDuration(inputIndex))
+                Next
             Next
             FileClose(3)
         Else
@@ -138,91 +453,173 @@
         fd.RestoreDirectory = False
 
         If fd.ShowDialog() = DialogResult.OK Then
-            vFile(3) = fd.FileName
-            Dim fileReader = My.Computer.FileSystem.OpenTextFileReader(vFile(3))
-            Dim stringReader = fileReader.ReadLine()
-            stringReader = fileReader.ReadLine()
-            vCC = stringReader.Replace("""", "")
-            txbStart.Text = fileReader.ReadLine().Replace("""", "")
-            txbPostSession.Text = fileReader.ReadLine().Replace("""", "")
-            txbICI.Text = fileReader.ReadLine().Replace("""", "")
-            CheckBox1.Checked = fileReader.ReadLine().Replace("#", "")
-            For i = 1 To vCC
-                ReDim AC(i).ScheduleType(1)
-                ReDim AC(i).ScheduleValue(1)
-                ReDim AC(i).Magnitude(1)
-                ReDim AC(i).Reinforcer(1)
-                ReDim AC(i).PelletP(1)
-                ReDim AC(i).FeedbackDuration(1)
-                ReDim AC(i).FeedbackType(1)
-                ReDim AC(i).DelayDuration(1)
-                ReDim AC(i).DelayType(1)
-                ReDim AC(i).DelayRetract(1)
-                ReDim AC(i).DelaySignalDuration(1)
-                '
-                AC(i).HouselightOnOff = fileReader.ReadLine().Replace("#", "")
-                AC(i).COD = fileReader.ReadLine()
-                AC(i).MaxRefs = fileReader.ReadLine()
-                AC(i).ComponentDuration = fileReader.ReadLine()
-                AC(i).ComponentIteration = fileReader.ReadLine()
-                AC(i).ComponentStimDuration = fileReader.ReadLine()
-                AC(i).ComponentStimType = fileReader.ReadLine().Replace("""", "")
-                AC(i).ScheduleType(0) = fileReader.ReadLine().Replace("""", "")
-                AC(i).ScheduleType(1) = fileReader.ReadLine().Replace("""", "")
-                AC(i).ScheduleValue(0) = fileReader.ReadLine()
-                AC(i).ScheduleValue(1) = fileReader.ReadLine()
-                AC(i).Magnitude(0) = fileReader.ReadLine()
-                AC(i).Magnitude(1) = fileReader.ReadLine()
-                AC(i).Reinforcer(0) = fileReader.ReadLine().Replace("""", "")
-                AC(i).Reinforcer(1) = fileReader.ReadLine().Replace("""", "")
-                AC(i).PelletP(0) = fileReader.ReadLine()
-                AC(i).PelletP(1) = fileReader.ReadLine()
-                AC(i).FeedbackDuration(0) = fileReader.ReadLine()
-                AC(i).FeedbackDuration(1) = fileReader.ReadLine()
-                AC(i).FeedbackType(0) = fileReader.ReadLine().Replace("""", "")
-                AC(i).FeedbackType(1) = fileReader.ReadLine().Replace("""", "")
-                AC(i).DelayDuration(0) = fileReader.ReadLine()
-                AC(i).DelayDuration(1) = fileReader.ReadLine()
-                AC(i).DelayType(0) = fileReader.ReadLine().Replace("""", "")
-                AC(i).DelayType(1) = fileReader.ReadLine().Replace("""", "")
-                AC(i).DelayRetract(0) = fileReader.ReadLine().Replace("#", "")
-                AC(i).DelayRetract(1) = fileReader.ReadLine().Replace("#", "")
-                AC(i).DelaySignalDuration(0) = fileReader.ReadLine()
-                AC(i).DelaySignalDuration(1) = fileReader.ReadLine()
+            Dim previousComponents() As ComponentBlueprint = SnapshotComponents()
+            Dim previousVCC As Byte = vCC
+            Dim previousStart As String = txbStart.Text
+            Dim previousPostSession As String = txbPostSession.Text
+            Dim previousICI As String = txbICI.Text
+            Dim previousICIEnabled As Boolean = chkICIEnabled.Checked
+            Dim previousICIRetract As Boolean = chkICIRetractInputs.Checked
+            Dim previousRandom As Boolean = CheckBox1.Checked
+            Dim previousOrder As String = txbComponentOrder.Text
+            Dim previousCOM As String = txtCOM.Text
+            Dim fileReader As System.IO.TextReader = Nothing
 
-                PrintInfo(lblComponent.Location.X, lblComponent.Location.Y, "Component " & i)
-                PrintInfo(lblComponentD.Location.X, lblComponentD.Location.Y, AC(i).ComponentDuration & " seconds")
-                PrintInfo(lblComponentI.Location.X, lblComponentI.Location.Y, AC(i).ComponentIteration & " times")
-                PrintInfo(lblComponentS.Location.X, lblComponentS.Location.Y, AC(i).ComponentStimType & ": " & AC(i).ComponentStimDuration & " seconds")
-                PrintInfo(lblCOD.Location.X, lblCOD.Location.Y, AC(i).COD & " seconds")
+            Try
+                vFile(3) = fd.FileName
+                fileReader = My.Computer.FileSystem.OpenTextFileReader(vFile(3))
+                Dim stringReader = ReadConfigValue(fileReader)
 
-                PrintInfo(lblSchedule1.Location.X, lblSchedule1.Location.Y, AC(i).ScheduleType(0) & " " & AC(i).ScheduleValue(0))
-                PrintInfo(lblMagnitude1.Location.X, lblMagnitude1.Location.Y, AC(i).Magnitude(0) & " " & AC(i).Reinforcer(0) & " " & AC(i).PelletP(0))
-                PrintInfo(lblFeedback1.Location.X, lblFeedback1.Location.Y, AC(i).FeedbackType(0) & ": " & AC(i).FeedbackDuration(0) & " seconds")
-                PrintInfo(lblDelay1.Location.X, lblDelay1.Location.Y, AC(i).DelayType(0) & ": " & AC(i).DelayDuration(0) & " seconds - Ret: " & AC(i).DelayRetract(0) & "/ signal: " & AC(i).DelaySignalDuration(0) & " seconds")
+                Dim componentCountLine As String = fileReader.ReadLine()
+                If ConfigLineStartsWith(componentCountLine, "Subject") Then
+                    ReadConfigValue(fileReader)
+                    ReadConfigValue(fileReader)
+                    ReadConfigValue(fileReader)
+                    componentCountLine = fileReader.ReadLine()
+                End If
 
-                PrintInfo(lblSchedule2.Location.X, lblSchedule2.Location.Y, AC(i).ScheduleType(1) & " " & AC(i).ScheduleValue(1))
-                PrintInfo(lblMagnitude2.Location.X, lblMagnitude2.Location.Y, AC(i).Magnitude(1) & " " & AC(i).Reinforcer(1) & " " & AC(i).PelletP(1))
-                PrintInfo(lblFeedback2.Location.X, lblFeedback2.Location.Y, AC(i).FeedbackType(1) & ": " & AC(i).FeedbackDuration(1) & " seconds")
-                PrintInfo(lblDelay2.Location.X, lblDelay2.Location.Y, AC(i).DelayType(1) & ": " & AC(i).DelayDuration(1) & " seconds - Ret: " & AC(i).DelayRetract(1) & "/ signal: " & AC(i).DelaySignalDuration(1) & " seconds")
+                vCC = ConfigValueFromLine(componentCountLine)
+                If vCC <= 0 OrElse vCC > MAX_COMPONENTS Then Throw New System.IO.InvalidDataException("Unsupported component count.")
 
-                For Each lb In Me.Controls
-                    If lb.Text.Contains("Component ") Then
-                        lb.Font = New Font("Microsoft Sans Serif", 11.0!, FontStyle.Bold)
+                Dim startDelayLine As String = fileReader.ReadLine()
+                If ConfigLineStartsWith(startDelayLine, "COM Port") Then
+                    txtCOM.Text = ConfigValueFromLine(startDelayLine).Replace("""", "")
+                    startDelayLine = fileReader.ReadLine()
+                End If
+
+                txbStart.Text = ConfigValueFromLine(startDelayLine).Replace("""", "")
+                txbPostSession.Text = ReadConfigValue(fileReader).Replace("""", "")
+                txbICI.Text = ReadConfigValue(fileReader).Replace("""", "")
+
+                Dim nextConfigLine As String = fileReader.ReadLine()
+                If ConfigLineStartsWith(nextConfigLine, "Inter Component Interval Enabled") Then
+                    chkICIEnabled.Checked = BoolFromConfig(ConfigValueFromLine(nextConfigLine))
+                    chkICIRetractInputs.Checked = BoolFromConfig(ReadConfigValue(fileReader))
+                    ApplyICIStimulusType(ReadConfigValue(fileReader).Replace("""", ""))
+                    CheckBox1.Checked = BoolFromConfig(ReadConfigValue(fileReader))
+                Else
+                    chkICIEnabled.Checked = IntFromText(txbICI.Text, 0) > 0
+                    chkICIRetractInputs.Checked = True
+                    ApplyICIStimulusType("None")
+                    CheckBox1.Checked = BoolFromConfig(ConfigValueFromLine(nextConfigLine))
+                End If
+
+                Dim firstComponentLine As String = fileReader.ReadLine()
+                If ConfigLineStartsWith(firstComponentLine, "Component Presentation Order") Then
+                    txbComponentOrder.Text = ConfigValueFromLine(firstComponentLine).Replace("""", "")
+                    firstComponentLine = Nothing
+                Else
+                    txbComponentOrder.Text = ""
+                End If
+
+                UpdateICIState()
+                UpdateComponentOrderState()
+                For i = 1 To vCC
+                    ReDim AC(i).InputName(MAX_INPUTS - 1)
+                    ReDim AC(i).ScheduleType(MAX_INPUTS - 1)
+                    ReDim AC(i).ScheduleValue(MAX_INPUTS - 1)
+                    ReDim AC(i).Magnitude(MAX_INPUTS - 1)
+                    ReDim AC(i).Reinforcer(MAX_INPUTS - 1)
+                    ReDim AC(i).PelletP(MAX_INPUTS - 1)
+                    ReDim AC(i).FeedbackDuration(MAX_INPUTS - 1)
+                    ReDim AC(i).FeedbackType(MAX_INPUTS - 1)
+                    ReDim AC(i).DelayDuration(MAX_INPUTS - 1)
+                    ReDim AC(i).DelayType(MAX_INPUTS - 1)
+                    ReDim AC(i).DelayRetract(MAX_INPUTS - 1)
+                    ReDim AC(i).DelaySignalDuration(MAX_INPUTS - 1)
+                    '
+                    If i = 1 AndAlso firstComponentLine IsNot Nothing Then
+                        AC(i).HouselightOnOff = ConfigValueFromLine(firstComponentLine).Replace("#", "")
+                    Else
+                        AC(i).HouselightOnOff = ReadConfigValue(fileReader).Replace("#", "")
                     End If
+                    AC(i).COD = ReadConfigValue(fileReader)
+                    AC(i).MaxRefs = ReadConfigValue(fileReader)
+                    AC(i).ComponentName = ReadConfigValue(fileReader).Replace("""", "")
+                    AC(i).ComponentDuration = ReadConfigValue(fileReader)
+                    AC(i).ComponentIteration = ReadConfigValue(fileReader)
+                    Dim componentStimLine As String = fileReader.ReadLine()
+                    If ConfigLineStartsWith(componentStimLine, "Component " & i & " Light Intermittency Seconds") Then
+                        AC(i).ComponentLightIntermittency = ConfigValueFromLine(componentStimLine)
+                        AC(i).ComponentStimDuration = ReadConfigValue(fileReader)
+                        AC(i).ComponentStimType = ReadConfigValue(fileReader).Replace("""", "")
+                    Else
+                        AC(i).ComponentLightIntermittency = 0
+                        AC(i).ComponentStimDuration = ConfigValueFromLine(componentStimLine)
+                        AC(i).ComponentStimType = ReadConfigValue(fileReader).Replace("""", "")
+                    End If
+                    AC(i).InputCount = ReadConfigValue(fileReader)
+                    If AC(i).InputCount <= 0 Then AC(i).InputCount = 2
+                    If AC(i).InputCount > MAX_INPUTS Then AC(i).InputCount = MAX_INPUTS
+
+                    For inputIndex As Integer = 0 To AC(i).InputCount - 1
+                        AC(i).InputName(inputIndex) = ReadConfigValue(fileReader).Replace("""", "")
+                        AC(i).ScheduleType(inputIndex) = ReadConfigValue(fileReader).Replace("""", "")
+                        Dim scheduleValueText As String = ReadConfigValue(fileReader)
+                        Dim magnitudeText As String = ReadConfigValue(fileReader)
+                        Dim reinforcerText As String = ReadConfigValue(fileReader).Replace("""", "")
+                        Dim pelletPText As String = ReadConfigValue(fileReader)
+
+                        If AC(i).ScheduleType(inputIndex) = "Extinction" Then
+                            AC(i).ScheduleValue(inputIndex) = 0
+                            AC(i).Magnitude(inputIndex) = 0
+                            AC(i).Reinforcer(inputIndex) = "N/A"
+                            AC(i).PelletP(inputIndex) = 0
+                        Else
+                            AC(i).ScheduleValue(inputIndex) = scheduleValueText
+                            AC(i).Magnitude(inputIndex) = magnitudeText
+                            AC(i).Reinforcer(inputIndex) = reinforcerText
+                            AC(i).PelletP(inputIndex) = pelletPText
+                        End If
+                        AC(i).FeedbackDuration(inputIndex) = ReadConfigValue(fileReader)
+                        AC(i).FeedbackType(inputIndex) = ReadConfigValue(fileReader).Replace("""", "")
+                        AC(i).DelayDuration(inputIndex) = ReadConfigValue(fileReader)
+                        AC(i).DelayType(inputIndex) = ReadConfigValue(fileReader).Replace("""", "")
+                        AC(i).DelayRetract(inputIndex) = ReadConfigValue(fileReader).Replace("#", "")
+                        AC(i).DelaySignalDuration(inputIndex) = ReadConfigValue(fileReader)
+                    Next
+
+                    For inputIndex As Integer = AC(i).InputCount To MAX_INPUTS - 1
+                        AC(i).InputName(inputIndex) = ""
+                        AC(i).ScheduleType(inputIndex) = "Extinction"
+                        AC(i).ScheduleValue(inputIndex) = 0
+                        AC(i).Magnitude(inputIndex) = 0
+                        AC(i).Reinforcer(inputIndex) = "Pellet"
+                        AC(i).PelletP(inputIndex) = 0
+                        AC(i).FeedbackDuration(inputIndex) = 0
+                        AC(i).FeedbackType(inputIndex) = "None"
+                        AC(i).DelayDuration(inputIndex) = 0
+                        AC(i).DelayType(inputIndex) = "None"
+                        AC(i).DelayRetract(inputIndex) = False
+                        AC(i).DelaySignalDuration(inputIndex) = 0
+                    Next
+
                 Next
+                RefreshComponentSummaryTable()
 
-                Me.Controls.Add(Me.LabelPreview(PreviewCounter))
-                PreviewCounter += 1
+                If vCC >= 2 Then
+                    CheckBox1.Enabled = True
+                    CheckBox1.Checked = True
+                End If
 
-                vPadding += 180
-
-            Next
-
-            If vCC >= 2 Then
-                CheckBox1.Enabled = True
-                CheckBox1.Checked = True
-            End If
+            Catch ex As Exception
+                RestoreComponents(previousComponents)
+                vCC = previousVCC
+                txbStart.Text = previousStart
+                txbPostSession.Text = previousPostSession
+                txbICI.Text = previousICI
+                chkICIEnabled.Checked = previousICIEnabled
+                chkICIRetractInputs.Checked = previousICIRetract
+                CheckBox1.Checked = previousRandom
+                txbComponentOrder.Text = previousOrder
+                txtCOM.Text = previousCOM
+                UpdateICIState()
+                UpdateComponentOrderState()
+                RefreshComponentSummaryTable()
+                MessageBox.Show("This configuration file is not compatible with this version of the program.")
+            Finally
+                If fileReader IsNot Nothing Then fileReader.Close()
+            End Try
 
         End If
     End Sub
@@ -231,34 +628,11 @@
 
         ' Nothing to remove
         If vCC <= 0 Then Exit Sub
-        If PreviewCounter <= 0 Then
-            vCC = 0
-            Exit Sub
-        End If
-
-        ' Where the last component's preview block starts
-        Dim startIndex As Integer = PreviewStartByComponent(vCC)
-
-        ' Safety clamps
-        If startIndex < 0 Then startIndex = 0
-        If startIndex > PreviewCounter Then startIndex = PreviewCounter
-
-        ' Remove ALL labels created for that component
-        For idx As Integer = PreviewCounter - 1 To startIndex Step -1
-            If idx >= 0 AndAlso idx <= LabelPreview.Length - 1 Then
-                Dim lb As Label = LabelPreview(idx)
-                If lb IsNot Nothing Then
-                    If Me.Controls.Contains(lb) Then Me.Controls.Remove(lb)
-                    lb.Dispose()
-                    LabelPreview(idx) = Nothing
-                End If
-            End If
-            PreviewCounter -= 1
-        Next
 
         ' Reset the removed component slot (Structure)
         AC(vCC) = New ComponentBlueprint
         AC(vCC).ComponentDuration_measured = Nothing
+        AC(vCC).InputName = Nothing
         AC(vCC).ScheduleType = Nothing
         AC(vCC).ScheduleValue = Nothing
         AC(vCC).Magnitude = Nothing
@@ -271,12 +645,9 @@
         AC(vCC).DelayRetract = Nothing
         AC(vCC).DelaySignalDuration = Nothing
 
-        ' Clear stored start index
-        PreviewStartByComponent(vCC) = 0
-
         ' Update component count & layout
         vCC -= 1
-        If vPadding >= 180 Then vPadding -= 180
+        RefreshComponentSummaryTable()
 
         ' Randomization only makes sense with 2+ components
         If vCC < 2 Then
