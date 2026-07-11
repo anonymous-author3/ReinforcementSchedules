@@ -1,61 +1,678 @@
 ﻿Imports System.Math
 Imports System.IO.Ports
+Imports System.Security.Cryptography
 Imports System.Windows.Forms.DataVisualization.Charting
 Public Class Main
     Public Arduino As SerialPort
+    Private SimulationMode As Boolean = False
     Private WithEvents tmrChrt As Timer = New Timer
+    Private WithEvents tmrComponentLightStim As Timer = New Timer
     Private CompSequence As List(Of Integer)
     Private CompIndexSeq As Integer
-    Private NosepokeIn(0) As Boolean 'False = currently OUT, True = currently IN
+    Private ObtainedDelayDurations(,) As List(Of Integer)
+    Private DelayOnset(MAX_INPUTS - 1) As Integer
+    Private DelayComp(MAX_INPUTS - 1) As Integer
+    Private ScheduleTimers(MAX_INPUTS - 1) As Timer
+    Private DelayTimers(MAX_INPUTS - 1) As Timer
+    Private DelaySignalTimers(MAX_INPUTS - 1) As Timer
+    Private FeedbackTimers(MAX_INPUTS - 1) As Timer
+    Private ComponentLightStimOn As Boolean
+    Private ComponentToneStimOn As Boolean
+    Private ChartSeriesConfigured As Boolean = False
+    Private SessionTimeSeconds As Integer = 0
+    Private LastDisplayedSecond As Integer = Integer.MinValue
+    Private SessionStarted As Boolean = False
+    Private SessionEnding As Boolean = False
+    Private SessionClosed As Boolean = False
+    Private PostSessionEndTick As Integer = 0
+    Private LastPostSessionSecond As Integer = Integer.MinValue
+    Private ReadOnly SessionRandom As Random = New Random(CreateRandomSeed())
+    Private dgvMainSession As DataGridView
+    Private dgvMainInputs As DataGridView
+    Private pnlManualControls As FlowLayoutPanel
 
-    Private ObtainedDelayDurations(,) As List(Of Integer)   ' (component 1..MAXvCC, lever 0..1) values in ms
-    Private DelayOnset(1) As Integer                        ' onset time (ms) for current active delay per lever; -1 = none
-    Private DelayComp(1) As Integer  ' componente en el que comenzó la demora, por palanca
+    Private Shared Function CreateRandomSeed() As Integer
+        Dim bytes(3) As Byte
+        Using rng As RandomNumberGenerator = RandomNumberGenerator.Create()
+            rng.GetBytes(bytes)
+        End Using
+        Return BitConverter.ToInt32(bytes, 0)
+    End Function
 
+    Private Sub EnsureInputRuntime()
+        For inputIndex As Integer = 0 To MAX_INPUTS - 1
+            If ScheduleTimers(inputIndex) Is Nothing Then
+                ScheduleTimers(inputIndex) = New Timer()
+                AddHandler ScheduleTimers(inputIndex).Tick, AddressOf ScheduleTimer_Tick
+            End If
 
+            If DelayTimers(inputIndex) Is Nothing Then
+                DelayTimers(inputIndex) = New Timer()
+                DelayTimers(inputIndex).Interval = 1000
+                AddHandler DelayTimers(inputIndex).Tick, AddressOf DelayTimer_Tick
+            End If
 
-    Function ArduinoVB() As Integer 'This function starts the Arduino-VB communication.
-        Arduino = New SerialPort(SetUp.txtCOM.Text, 9600) 'Assigns the Arduino to the selected port at a 9600 baud rate. 
-        Arduino.Open() 'Starts the Arduino-VB communication.
-        Arduino.WriteLine("p")
-        tmrStart.Interval = Max(1, SetUp.txbStart.Text * 1000)
-        If SetUp.txbICI.Text <> 0 Then
-            tmrICI.Interval = SetUp.txbICI.Text * 1000
-        Else
-            tmrICI.Interval = 1
+            If DelaySignalTimers(inputIndex) Is Nothing Then
+                DelaySignalTimers(inputIndex) = New Timer()
+                AddHandler DelaySignalTimers(inputIndex).Tick, AddressOf DelaySignalTimer_Tick
+            End If
+
+            If FeedbackTimers(inputIndex) Is Nothing Then
+                FeedbackTimers(inputIndex) = New Timer()
+                FeedbackTimers(inputIndex).Interval = 1000
+                AddHandler FeedbackTimers(inputIndex).Tick, AddressOf FeedbackTimer_Tick
+            End If
+        Next
+
+        ConfigureMainLayout()
+        EnsureChartSeries()
+        EnsureInputStatusControls()
+    End Sub
+
+    Private Sub EnsureInputStatusControls()
+        For inputIndex As Integer = 0 To MAX_INPUTS - 1
+            EnsureSimulationButton(inputIndex)
+            EnsureInputOutputButton(inputIndex)
+            EnsureInputReinforcerButton(inputIndex)
+        Next
+    End Sub
+
+    Private Sub EnsureSimulationButton(inputIndex As Integer)
+        Dim controlName As String = "btnSimResponse" & (inputIndex + 1)
+        If pnlManualControls.Controls.ContainsKey(controlName) Then Exit Sub
+
+        Dim responseButton As New Button With {
+            .Name = controlName,
+            .Size = New Size(138, 28),
+            .Tag = inputIndex,
+            .Text = "Response " & (inputIndex + 1),
+            .UseVisualStyleBackColor = True
+        }
+
+        AddHandler responseButton.Click, AddressOf SimResponseButton_Click
+        pnlManualControls.Controls.Add(responseButton)
+        responseButton.Visible = False
+    End Sub
+
+    Private Sub SimResponseButton_Click(sender As Object, e As EventArgs)
+        Dim inputIndex As Integer = CInt(DirectCast(sender, Button).Tag)
+        If inputIndex < ActiveInputCount() Then Response(inputIndex)
+    End Sub
+
+    Private Sub InputOutputButton_Click(sender As Object, e As EventArgs)
+        Dim inputIndex As Integer = CInt(DirectCast(sender, Button).Tag)
+        If inputIndex >= ActiveInputCount() Then Exit Sub
+
+        PalIO(inputIndex) = Not PalIO(inputIndex)
+        SetInputOutput(inputIndex, PalIO(inputIndex))
+        UpdateManualControls()
+    End Sub
+
+    Private Sub InputReinforcerButton_Click(sender As Object, e As EventArgs)
+        Dim inputIndex As Integer = CInt(DirectCast(sender, Button).Tag)
+        If inputIndex < ActiveInputCount() Then Reinforce(inputIndex, True)
+    End Sub
+
+    Private Sub SetSimulationButton(inputIndex As Integer, enabled As Boolean)
+        Dim controlName As String = "btnSimResponse" & (inputIndex + 1)
+        If pnlManualControls Is Nothing OrElse pnlManualControls.Controls.ContainsKey(controlName) = False Then Exit Sub
+
+        Dim responseButton As Button = DirectCast(pnlManualControls.Controls(controlName), Button)
+        responseButton.Enabled = enabled
+        responseButton.Visible = enabled
+        responseButton.Text = If(enabled, "Response: " & InputLabel(inputIndex), "Response " & (inputIndex + 1))
+    End Sub
+
+    Private Sub SetManualButton(controlName As String, inputIndex As Integer, enabled As Boolean, textValue As String)
+        If pnlManualControls Is Nothing OrElse pnlManualControls.Controls.ContainsKey(controlName) = False Then Exit Sub
+
+        Dim manualButton As Button = DirectCast(pnlManualControls.Controls(controlName), Button)
+        manualButton.Enabled = enabled
+        manualButton.Visible = enabled
+        manualButton.Text = textValue
+    End Sub
+
+    Private Sub EnsureInputOutputButton(inputIndex As Integer)
+        Dim controlName As String = "btnInputOutput" & (inputIndex + 1)
+        If pnlManualControls.Controls.ContainsKey(controlName) Then Exit Sub
+
+        Dim ioButton As New Button With {
+            .Name = controlName,
+            .Size = New Size(138, 28),
+            .Tag = inputIndex,
+            .Text = "In/Out " & (inputIndex + 1),
+            .UseVisualStyleBackColor = True
+        }
+
+        AddHandler ioButton.Click, AddressOf InputOutputButton_Click
+        pnlManualControls.Controls.Add(ioButton)
+        ioButton.Visible = False
+    End Sub
+
+    Private Sub EnsureInputReinforcerButton(inputIndex As Integer)
+        Dim controlName As String = "btnInputReinforcer" & (inputIndex + 1)
+        If pnlManualControls.Controls.ContainsKey(controlName) Then Exit Sub
+
+        Dim reinforcerButton As New Button With {
+            .Name = controlName,
+            .Size = New Size(138, 28),
+            .Tag = inputIndex,
+            .Text = "Rf " & (inputIndex + 1),
+            .UseVisualStyleBackColor = True
+        }
+
+        AddHandler reinforcerButton.Click, AddressOf InputReinforcerButton_Click
+        pnlManualControls.Controls.Add(reinforcerButton)
+        reinforcerButton.Visible = False
+    End Sub
+
+    Private Sub ConfigureMainLayout()
+        If Me.ClientSize.Width < 1490 OrElse Me.ClientSize.Height < 820 Then
+            Me.ClientSize = New Size(Math.Max(Me.ClientSize.Width, 1490), Math.Max(Me.ClientSize.Height, 820))
         End If
+
+        Dim margin As Integer = 12
+        Dim gap As Integer = 12
+        Dim tableWidth As Integer = CInt((Me.ClientSize.Width - (margin * 2) - gap) / 2)
+        Dim tableHeight As Integer = 220
+        Dim chartTop As Integer = margin + tableHeight + gap
+        Dim chartHeight As Integer = 430
+        Dim controlsTop As Integer = chartTop + chartHeight + gap
+
+        If dgvMainSession Is Nothing Then
+            dgvMainSession = New DataGridView With {
+                .Name = "dgvMainSession",
+                .Location = New Point(margin, margin),
+                .Size = New Size(tableWidth, tableHeight),
+                .AllowUserToAddRows = False,
+                .AllowUserToDeleteRows = False,
+                .AllowUserToResizeRows = False,
+                .ReadOnly = True,
+                .RowHeadersVisible = False,
+                .SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                .AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill
+            }
+            dgvMainSession.Columns.Add("Property", "Property")
+            dgvMainSession.Columns.Add("Value", "Value")
+            Me.Controls.Add(dgvMainSession)
+        End If
+        dgvMainSession.Location = New Point(margin, margin)
+        dgvMainSession.Size = New Size(tableWidth, tableHeight)
+
+        If dgvMainInputs Is Nothing Then
+            dgvMainInputs = New DataGridView With {
+                .Name = "dgvMainInputs",
+                .Location = New Point(margin + tableWidth + gap, margin),
+                .Size = New Size(tableWidth, tableHeight),
+                .AllowUserToAddRows = False,
+                .AllowUserToDeleteRows = False,
+                .AllowUserToResizeRows = False,
+                .ReadOnly = True,
+                .RowHeadersVisible = False,
+                .SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                .AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill
+            }
+            dgvMainInputs.Columns.Add("Input", "Input")
+            dgvMainInputs.Columns.Add("Schedule", "Schedule")
+            dgvMainInputs.Columns.Add("RfReady", "Rf ready")
+            dgvMainInputs.Columns.Add("Responses", "Resp")
+            dgvMainInputs.Columns.Add("CODResponses", "COD")
+            dgvMainInputs.Columns.Add("Reinforcers", "Rf")
+            Me.Controls.Add(dgvMainInputs)
+        End If
+        dgvMainInputs.Location = New Point(margin + tableWidth + gap, margin)
+        dgvMainInputs.Size = New Size(tableWidth, tableHeight)
+
+        If pnlManualControls Is Nothing Then
+            pnlManualControls = New FlowLayoutPanel With {
+                .Name = "pnlManualControls",
+                .Location = New Point(margin, controlsTop),
+                .Size = New Size(Me.ClientSize.Width - (margin * 2), 112),
+                .AutoScroll = True,
+                .WrapContents = True,
+                .Visible = False
+            }
+            Me.Controls.Add(pnlManualControls)
+        End If
+        pnlManualControls.Location = New Point(margin, controlsTop)
+        pnlManualControls.Size = New Size(Me.ClientSize.Width - (margin * 2), 112)
+
+        Chart1.Location = New Point(margin, chartTop)
+        Chart1.Size = New Size(Me.ClientSize.Width - (margin * 2), chartHeight)
+
+        If btnFinish.Parent IsNot pnlManualControls Then
+            Me.Controls.Remove(btnFinish)
+            pnlManualControls.Controls.Add(btnFinish)
+        End If
+        btnFinish.Size = New Size(138, 28)
+        btnFinish.Margin = New Padding(3)
+        btnFinish.Font = New Font("Microsoft Sans Serif", 8.25!, FontStyle.Regular, GraphicsUnit.Point, CType(0, Byte))
+        btnFinish.BackColor = Color.Firebrick
+        btnFinish.ForeColor = Color.White
+        btnFinish.FlatStyle = FlatStyle.Flat
+        btnFinish.UseVisualStyleBackColor = False
+        btnFinish.Visible = SessionStarted AndAlso SessionEnding = False
+    End Sub
+
+    Private Sub EnsureChartSeries()
+        If ChartSeriesConfigured Then Exit Sub
+
+        Chart1.Series.Clear()
+        If Chart1.ChartAreas.Count = 0 Then Chart1.ChartAreas.Add("ChartArea1")
+        Dim chartArea As ChartArea = Chart1.ChartAreas(0)
+        chartArea.AxisX.MajorGrid.Enabled = False
+        chartArea.AxisX.MinorGrid.Enabled = False
+        chartArea.AxisY.MajorGrid.Enabled = False
+        chartArea.AxisY.MinorGrid.Enabled = False
+        chartArea.AxisX.Title = "Time"
+        chartArea.AxisY.Title = "Responses"
+        chartArea.AxisX.StripLines.Clear()
+        If Chart1.Legends.Count = 0 Then Chart1.Legends.Add("Legend1")
+        Chart1.Legends(0).Docking = Docking.Right
+
+        For inputIndex As Integer = 0 To MAX_INPUTS - 1
+            Dim inputSeries As String = ResponseSeriesName(inputIndex)
+            If Chart1.Series.IndexOf(inputSeries) < 0 Then
+                Dim series As New Series(inputSeries)
+                series.ChartArea = "ChartArea1"
+                series.ChartType = SeriesChartType.StepLine
+                series.Legend = "Legend1"
+                series.BorderWidth = 2
+                series.IsVisibleInLegend = False
+                Chart1.Series.Add(series)
+            End If
+
+            Dim reinforcerSeries As String = ReinforcerSeriesName(inputIndex)
+            If Chart1.Series.IndexOf(reinforcerSeries) < 0 Then
+                Dim series As New Series(reinforcerSeries)
+                series.ChartArea = "ChartArea1"
+                series.ChartType = SeriesChartType.Point
+                series.Legend = "Legend1"
+                series.MarkerStyle = MarkerStyle.Cross
+                series.MarkerSize = 8
+                series.IsVisibleInLegend = False
+                Chart1.Series.Add(series)
+            End If
+        Next
+
+        Dim componentColors() As Color = {
+            Color.FromArgb(45, Color.Blue),
+            Color.FromArgb(45, Color.Red),
+            Color.FromArgb(55, Color.Goldenrod),
+            Color.FromArgb(45, Color.Green),
+            Color.FromArgb(45, Color.DarkViolet),
+            Color.FromArgb(45, Color.Teal),
+            Color.FromArgb(45, Color.OrangeRed),
+            Color.FromArgb(45, Color.SlateGray),
+            Color.FromArgb(45, Color.DeepPink),
+            Color.FromArgb(45, Color.DarkCyan)
+        }
+
+        For componentIndex As Integer = 1 To MAX_COMPONENTS
+            Dim componentSeries As String = ComponentSeriesName(componentIndex)
+            Dim series As New Series(componentSeries)
+            series.ChartArea = "ChartArea1"
+            series.ChartType = SeriesChartType.Area
+            series.Legend = "Legend1"
+            series.BorderWidth = 1
+            series.Color = componentColors((componentIndex - 1) Mod componentColors.Length)
+            series.IsVisibleInLegend = False
+            Chart1.Series.Add(series)
+        Next
+
+        ChartSeriesConfigured = True
+    End Sub
+
+    Private Function ResponseSeriesName(inputIndex As Integer) As String
+        Return "ResponseInput" & (inputIndex + 1)
+    End Function
+
+    Private Function ReinforcerSeriesName(inputIndex As Integer) As String
+        Return "ReinforcerInput" & (inputIndex + 1)
+    End Function
+
+    Private Function ComponentSeriesName(componentIndex As Integer) As String
+        Return "ComponentSeries" & componentIndex
+    End Function
+
+    Private Sub ClearComponentEndMarkers()
+        If Chart1.ChartAreas.Count = 0 Then Exit Sub
+        Chart1.ChartAreas(0).AxisX.StripLines.Clear()
+    End Sub
+
+    Private Sub AddComponentEndMarker()
+        If Chart1.ChartAreas.Count = 0 Then Exit Sub
+
+        Dim marker As New StripLine()
+        marker.IntervalOffset = chartTime(MAX_INPUTS)
+        marker.StripWidth = 0
+        marker.BorderColor = Color.DimGray
+        marker.BorderWidth = 1
+        marker.BorderDashStyle = ChartDashStyle.Dash
+        marker.Text = ""
+
+        Chart1.ChartAreas(0).AxisX.StripLines.Add(marker)
+    End Sub
+
+    Private Function ActiveInputCount(Optional componentIndex As Integer = -1) As Integer
+        If componentIndex < 0 Then componentIndex = vCC
+        If AC(componentIndex).InputCount <= 0 Then Return 2
+        Return Math.Min(AC(componentIndex).InputCount, MAX_INPUTS)
+    End Function
+
+    Private Function InputLabel(inputIndex As Integer, Optional componentIndex As Integer = -1) As String
+        If componentIndex < 0 Then componentIndex = vCC
+        If AC(componentIndex).InputName IsNot Nothing AndAlso
+           inputIndex <= AC(componentIndex).InputName.Length - 1 AndAlso
+           AC(componentIndex).InputName(inputIndex) <> "" Then
+            Return AC(componentIndex).InputName(inputIndex)
+        End If
+
+        Return "Input " & (inputIndex + 1)
+    End Function
+
+    Private Function ComponentLabel(componentIndex As Integer) As String
+        If AC(componentIndex).ComponentName <> "" Then Return AC(componentIndex).ComponentName
+        Return "Component " & componentIndex
+    End Function
+
+    Private Function ScheduleText(inputIndex As Integer) As String
+        If AC(vCC).ScheduleType(inputIndex) = "Extinction" Then Return "Extinction"
+        Return AC(vCC).ScheduleType(inputIndex) & " " & AC(vCC).ScheduleValue(inputIndex)
+    End Function
+
+    Private Function NormalizedScheduleType(inputIndex As Integer) As String
+        If AC(vCC).ScheduleType Is Nothing OrElse inputIndex < 0 OrElse inputIndex > AC(vCC).ScheduleType.Length - 1 Then Return ""
+        Return If(AC(vCC).ScheduleType(inputIndex), "").Trim().ToLowerInvariant()
+    End Function
+
+    Private Function IsRatioSchedule(inputIndex As Integer) As Boolean
+        Dim scheduleType As String = NormalizedScheduleType(inputIndex)
+        Return scheduleType = "fixed ratio" OrElse scheduleType = "variable ratio"
+    End Function
+
+    Private Function IsIntervalSchedule(inputIndex As Integer) As Boolean
+        Dim scheduleType As String = NormalizedScheduleType(inputIndex)
+        Return scheduleType = "fixed interval" OrElse scheduleType.Contains("variable interval")
+    End Function
+
+    Private Function IsExtinctionSchedule(inputIndex As Integer) As Boolean
+        Return NormalizedScheduleType(inputIndex) = "extinction"
+    End Function
+
+    Private Sub WriteRawEvent(eventCode As String)
+        WriteLine(1, vTimeNow, vCC, eventCode)
+    End Sub
+
+    Private Function HasAnyObtainedDelay() As Boolean
+        If ObtainedDelayDurations Is Nothing Then Return False
+
+        For componentIndex As Integer = 1 To MAXvCC
+            For inputIndex As Integer = 0 To ActiveInputCount(componentIndex) - 1
+                If ObtainedDelayDurations(componentIndex, inputIndex) IsNot Nothing AndAlso
+                   ObtainedDelayDurations(componentIndex, inputIndex).Count > 0 Then
+                    Return True
+                End If
+            Next
+        Next
+
+        Return False
+    End Function
+
+    Private Function ComponentStimText() As String
+        If AC(vCC).ComponentStimType Is Nothing OrElse AC(vCC).ComponentStimType = "" OrElse AC(vCC).ComponentStimType = "None" Then Return "None"
+
+        Dim details As New List(Of String)
+        details.Add(AC(vCC).ComponentStimType)
+        If AC(vCC).ComponentStimType.Contains("Light") Then details.Add("Light int: " & AC(vCC).ComponentLightIntermittency & " s")
+        If AC(vCC).ComponentStimType.Contains("Tone") Then details.Add("Tone int: " & AC(vCC).ComponentStimDuration & " s")
+        Return String.Join(" / ", details)
+    End Function
+
+    Private Sub AddMainSessionRow(label As String, value As String)
+        Dim rowIndex As Integer = dgvMainSession.Rows.Add()
+        dgvMainSession.Rows(rowIndex).Cells(0).Value = label
+        dgvMainSession.Rows(rowIndex).Cells(1).Value = value
+    End Sub
+
+    Private Sub RefreshMainSessionTable(Optional statusText As String = "")
+        If dgvMainSession Is Nothing Then Exit Sub
+
+        dgvMainSession.Rows.Clear()
+        AddMainSessionRow("Subject", SetUp.txtSubject.Text)
+        AddMainSessionRow("Session", SetUp.txtSession.Text)
+        AddMainSessionRow("COM / mode", SetUp.txtCOM.Text & If(SimulationMode, " / Simulation", ""))
+        AddMainSessionRow("Time (s)", CStr(SessionTimeSeconds))
+        AddMainSessionRow("Current component", If(statusText <> "", statusText, ComponentLabel(vCC)))
+        AddMainSessionRow("Duration (s)", CStr(AC(vCC).ComponentDuration))
+        AddMainSessionRow("Iterations left", CStr(AC(vCC).IterationsLeft))
+        AddMainSessionRow("Stimulus", ComponentStimText())
+    End Sub
+
+    Private Sub RefreshInputStatusTable()
+        If dgvMainInputs Is Nothing Then Exit Sub
+
+        dgvMainInputs.Rows.Clear()
+        For inputIndex As Integer = 0 To ActiveInputCount() - 1
+            dgvMainInputs.Rows.Add(
+                InputLabel(inputIndex),
+                ScheduleText(inputIndex),
+                If(IsRatioSchedule(inputIndex), "N/A", CStr(refRdy(inputIndex))),
+                CStr(ResponseCount(vCC, inputIndex)),
+                CStr(ResponseCountDel(vCC, inputIndex)),
+                CStr(RefCount(vCC, inputIndex)))
+        Next
+    End Sub
+
+    Private Sub RefreshMainTables(Optional statusText As String = "")
+        RefreshMainSessionTable(statusText)
+        RefreshInputStatusTable()
+        UpdateManualControls()
+        RefreshChartLegend()
+    End Sub
+
+    Private Sub RefreshChartLegend()
+        For inputIndex As Integer = 0 To MAX_INPUTS - 1
+            Dim active As Boolean = inputIndex < ActiveInputCount()
+            If Chart1.Series.IndexOf(ResponseSeriesName(inputIndex)) >= 0 Then
+                Chart1.Series(ResponseSeriesName(inputIndex)).LegendText = If(active, InputLabel(inputIndex) & " responses", "")
+                Chart1.Series(ResponseSeriesName(inputIndex)).IsVisibleInLegend = active
+            End If
+
+            If Chart1.Series.IndexOf(ReinforcerSeriesName(inputIndex)) >= 0 Then
+                Chart1.Series(ReinforcerSeriesName(inputIndex)).LegendText = If(active, InputLabel(inputIndex) & " reinforcers", "")
+                Chart1.Series(ReinforcerSeriesName(inputIndex)).IsVisibleInLegend = active AndAlso AC(vCC).Magnitude(inputIndex) > 0
+            End If
+        Next
+
+        For componentIndex As Integer = 1 To MAX_COMPONENTS
+            If Chart1.Series.IndexOf(ComponentSeriesName(componentIndex)) >= 0 Then
+                Chart1.Series(ComponentSeriesName(componentIndex)).LegendText = ComponentLabel(componentIndex)
+                Chart1.Series(ComponentSeriesName(componentIndex)).IsVisibleInLegend = componentIndex <= MAXvCC
+            End If
+        Next
+    End Sub
+
+    Private Sub UpdateManualControls()
+        If pnlManualControls IsNot Nothing Then pnlManualControls.Visible = SessionStarted AndAlso SessionEnding = False
+        btnFinish.Visible = SessionStarted AndAlso SessionEnding = False
+
+        For inputIndex As Integer = 0 To MAX_INPUTS - 1
+            Dim active As Boolean = inputIndex < ActiveInputCount()
+            Dim controlsEnabled As Boolean = SessionStarted AndAlso SessionEnding = False AndAlso active
+            SetSimulationButton(inputIndex, controlsEnabled)
+            SetManualButton("btnInputOutput" & (inputIndex + 1), inputIndex, controlsEnabled, If(active, If(PalIO(inputIndex), "Retract: ", "Insert: ") & InputLabel(inputIndex), "In/Out " & (inputIndex + 1)))
+            SetManualButton("btnInputReinforcer" & (inputIndex + 1), inputIndex, controlsEnabled AndAlso AC(vCC).Magnitude(inputIndex) > 0, If(active, "Rf: " & InputLabel(inputIndex), "Rf " & (inputIndex + 1)))
+        Next
+    End Sub
+
+    Private Function InputTimerIndex(timers() As Timer, sender As Object) As Integer
+        For inputIndex As Integer = 0 To MAX_INPUTS - 1
+            If Object.ReferenceEquals(timers(inputIndex), sender) Then Return inputIndex
+        Next
+        Return -1
+    End Function
+
+    Private Function AnyDelayActive() As Boolean
+        For inputIndex As Integer = 0 To MAX_INPUTS - 1
+            If DelayTimers(inputIndex) IsNot Nothing AndAlso DelayTimers(inputIndex).Enabled Then Return True
+        Next
+        Return False
+    End Function
+
+    Private Function FirstActiveDelayIndex() As Integer
+        For inputIndex As Integer = 0 To MAX_INPUTS - 1
+            If DelayTimers(inputIndex) IsNot Nothing AndAlso DelayTimers(inputIndex).Enabled Then Return inputIndex
+        Next
+        Return -1
+    End Function
+
+    Private Sub SendArduino(command As String)
+        If SimulationMode Then Exit Sub
+        If Arduino Is Nothing OrElse Arduino.IsOpen = False Then Exit Sub
+        Arduino.WriteLine(command)
+    End Sub
+
+    Private Function OpenArduinoOrSimulation() As Boolean
+        Try
+            Arduino = New SerialPort(SetUp.txtCOM.Text, 9600)
+            Arduino.Open()
+            SimulationMode = False
+            Return True
+        Catch ex As Exception
+            Dim result As DialogResult = MessageBox.Show(
+                "No Arduino was found on " & SetUp.txtCOM.Text & "." & Environment.NewLine &
+                "If you continue, the session will run in simulation mode without hardware input/output." & Environment.NewLine &
+                "Choose Cancel to close this session window.",
+                "Arduino not found",
+                MessageBoxButtons.OKCancel,
+                MessageBoxIcon.Warning)
+
+            If result = DialogResult.OK Then
+                SimulationMode = True
+                Arduino = Nothing
+                Return True
+            End If
+
+            Return False
+        End Try
+    End Function
+
+    Private Sub SetInputOutput(inputIndex As Integer, available As Boolean)
+        Dim onCommands() As String = {"L", "M", "C", "D", "N", "O"}
+        Dim offCommands() As String = {"l", "m", "c", "d", "n", "o"}
+
+        If inputIndex < 0 OrElse inputIndex > onCommands.Length - 1 Then Exit Sub
+        SendArduino(If(available, onCommands(inputIndex), offCommands(inputIndex)))
+    End Sub
+
+    Private Sub TurnOffAllInputs()
+        For inputIndex As Integer = 0 To MAX_INPUTS - 1
+            SetInputOutput(inputIndex, False)
+            PalIO(inputIndex) = False
+        Next
+    End Sub
+
+    Private Sub RestoreRetractedInput(inputIndex As Integer)
+        If AC(vCC).DelayRetract(inputIndex) Then SetInputOutput(inputIndex, True)
+    End Sub
+
+    Private Sub StartComponentStimulus()
+        tmrComponentStim.Enabled = False
+        tmrComponentLightStim.Enabled = False
+        ComponentLightStimOn = False
+        ComponentToneStimOn = False
+        StimInt = False
+
+        If AC(vCC).ComponentStimType IsNot Nothing AndAlso AC(vCC).ComponentStimType.Contains("Light") Then
+            If AC(vCC).ComponentLightIntermittency > 0 Then
+                ComponentLightStimOn = True
+                ActivateStimulus(AC(vCC).ComponentStimType, True, False)
+                tmrComponentLightStim.Interval = Math.Max(1, CInt(AC(vCC).ComponentLightIntermittency * 1000))
+                tmrComponentLightStim.Enabled = True
+            Else
+                ActivateStimulus(AC(vCC).ComponentStimType, True, False)
+            End If
+        End If
+
+        If AC(vCC).ComponentStimType IsNot Nothing AndAlso AC(vCC).ComponentStimType.Contains("Tone") Then
+            If AC(vCC).ComponentStimDuration > 0 Then
+                ComponentToneStimOn = True
+                ActivateStimulus("Tone", True)
+                tmrComponentStim.Interval = Math.Max(1, CInt(AC(vCC).ComponentStimDuration * 1000))
+                tmrComponentStim.Enabled = True
+            Else
+                ActivateStimulus("Tone", True)
+            End If
+        End If
+    End Sub
+
+    Private Sub StopComponentStimulus()
+        tmrComponentStim.Enabled = False
+        tmrComponentLightStim.Enabled = False
+        ComponentLightStimOn = False
+        ComponentToneStimOn = False
+        ActivateStimulus(AC(vCC).ComponentStimType, False)
+    End Sub
+
+
+    Function ArduinoVB() As Boolean 'This function starts the Arduino-VB communication.
+        EnsureInputRuntime()
+        If OpenArduinoOrSimulation() = False Then
+            Me.Close()
+            Return False
+        End If
+
+        SendArduino("p")
+        SessionStarted = False
+        SessionEnding = False
+        SessionClosed = False
+        LastDisplayedSecond = Integer.MinValue
+        LastPostSessionSecond = Integer.MinValue
+        RefreshMainTables("Starting")
+        tmrStart.Interval = Max(1, SetUp.txbStart.Text * 1000)
+        If SetUp.ICIDurationSeconds() > 0 Then tmrICI.Interval = SetUp.ICIDurationSeconds() * 1000
         Countdown = Environment.TickCount + SetUp.txbStart.Text * 1000
         tmrStart.Enabled = True
 
-        Do 'This code will run throughout the session to allow response collection. 
+        Do While SessionClosed = False 'This code will run throughout the session to allow response collection.
             Try
-                If Arduino.BytesToRead > 0 Then 'Checks for activity on the Arduino.
-                    Actual_Response = Split(Arduino.ReadLine(), ",") 'Splits data from the arduino into separate responses.
+                If SimulationMode = False AndAlso Arduino IsNot Nothing AndAlso Arduino.IsOpen AndAlso Arduino.BytesToRead > 0 Then 'Checks for activity on the Arduino.
+                    Dim readValues() As String = Split(Arduino.ReadLine(), ",")
+                    For inputIndex As Integer = 0 To MAX_INPUTS - 1
+                        If inputIndex <= readValues.Length - 1 Then
+                            Actual_Response(inputIndex) = readValues(inputIndex)
+                        End If
+                    Next
                 End If
-                'The next following lines compare the state of the data stream of operanda 1 and 2 with previous observations to detect responses.
-                If (Actual_Response(0) <> Previous_Response(0) And Actual_Response(0) <> 1) Then
-                    Response(0) 'If a response is registered at operanda 1, this code will run.
-                End If
-                If (Actual_Response(1) <> Previous_Response(1) And Actual_Response(1) <> 1) Then
-                    Response(1) 'The same happens for operanda 2.
-                End If
-                If (Actual_Response(2) <> Previous_Response(2) And Actual_Response(2) <> 1) Then
-                    Nosepoke(0) 'The same happens for operanda 3.
-                End If
-                If (Actual_Response(3) <> Previous_Response(3) And Actual_Response(3) <> 1) Then
-                    'Response(3) 'The same happens for operanda 4.
-                End If
-                If (Actual_Response(4) <> Previous_Response(4) And Actual_Response(4) <> 1) Then
-                    'Response(4) 'The same happens for operanda 5.
-                End If
-                Previous_Response(0) = Actual_Response(0) 'This resets the data stream observation of operanda 1 to detect further responses. 
-                Previous_Response(1) = Actual_Response(1) 'The same happens for operanda 2.
-                Previous_Response(2) = Actual_Response(2)
-                Previous_Response(3) = Actual_Response(3)
-                Previous_Response(4) = Actual_Response(4)
+
+                For inputIndex As Integer = 0 To MAX_INPUTS - 1
+                    If Actual_Response(inputIndex) <> Previous_Response(inputIndex) AndAlso Actual_Response(inputIndex) <> "1" Then
+                        If inputIndex < ActiveInputCount() Then
+                            Response(inputIndex)
+                        End If
+                    End If
+                    Previous_Response(inputIndex) = Actual_Response(inputIndex)
+                Next
                 If tmrStart.Enabled = False Then vTimeNow = Environment.TickCount - vTimeStart  'This keeps track of time for the Data output file.
                 If tmrStart.Enabled = True Then vTimeNow = (Countdown) - Environment.TickCount
-                lblTime.Text = Round(vTimeNow / 1000)
+                SessionTimeSeconds = CInt(Round(vTimeNow / 1000))
+                If SessionTimeSeconds < 0 AndAlso tmrStart.Enabled Then SessionTimeSeconds = 0
+
+                If tmrStart.Enabled AndAlso SessionTimeSeconds <> LastDisplayedSecond Then
+                    LastDisplayedSecond = SessionTimeSeconds
+                    RefreshMainSessionTable("Starting in " & SessionTimeSeconds & " s")
+                End If
+
+                If SessionEnding AndAlso tmrPostSession.Enabled Then
+                    Dim remainingPostSeconds As Integer = CInt(Math.Ceiling((PostSessionEndTick - Environment.TickCount) / 1000.0))
+                    If remainingPostSeconds < 0 Then remainingPostSeconds = 0
+
+                    If remainingPostSeconds <> LastPostSessionSecond Then
+                        LastPostSessionSecond = remainingPostSeconds
+                        RefreshMainSessionTable("Closing in " & remainingPostSeconds & " s")
+                    End If
+                End If
 
 
 
@@ -63,23 +680,30 @@ Public Class Main
             End Try
             My.Application.DoEvents() 'This will enable the rest of the program to run while executing the code from above.
         Loop
-        Return 0
+        Return True
     End Function
 
 
     Private Sub tmrStart_Tick(sender As Object, e As EventArgs) Handles tmrStart.Tick
         tmrStart.Enabled = False
+        SessionStarted = True
+        SessionEnding = False
+        LastDisplayedSecond = Integer.MinValue
 
-        WriteLine(1, "Components presented at random: " & CStr(RandomCPres))
+        WriteLine(2, "Components presented at random: " & CStr(RandomCPres))
 
 
         ' =========================================================
-        ' Generate randomized component sequence with restriction
-        ' (no three identical components in a row)
+        ' Generate component sequence when using manual or random order
         ' =========================================================
-        If RandomCPres = True Then
+        Dim manualSequence As List(Of Integer) = SetUp.ManualComponentSequence()
+        If manualSequence IsNot Nothing Then
+            CompSequence = manualSequence
+            CompIndexSeq = 0
+            WriteLine(2, "Manual component sequence: " & String.Join(",", CompSequence))
 
-            Dim rnd As New Random()
+        ElseIf RandomCPres = True Then
+
             Dim validSequence As Boolean = False
             Dim maxTries As Integer = 500
             Dim tries As Integer = 0
@@ -98,7 +722,7 @@ Public Class Main
 
                 ' Shuffle component list
                 For i As Integer = CompSequence.Count - 1 To 1 Step -1
-                    Dim j As Integer = rnd.Next(0, i + 1)
+                    Dim j As Integer = SessionRandom.Next(0, i + 1)
                     Dim tmp = CompSequence(i)
                     CompSequence(i) = CompSequence(j)
                     CompSequence(j) = tmp
@@ -115,9 +739,9 @@ Public Class Main
             Loop
 
             If Not validSequence Then
-                WriteLine(1, "WARNING: Could not avoid 3 consecutive components; using last shuffle.")
+                WriteLine(2, "WARNING: Could not avoid 3 consecutive components; using last shuffle.")
             Else
-                WriteLine(1, "Restricted component sequence: " & String.Join(",", CompSequence))
+                WriteLine(2, "Restricted component sequence: " & String.Join(",", CompSequence))
             End If
 
             ' Reset sequence index
@@ -134,12 +758,10 @@ Public Class Main
         ' Initialize session timing and visual settings
         ' =========================================================
         vTimeStart = Environment.TickCount
+        ClearComponentEndMarkers()
 
-        chartResponse(3) += 10
-        Chart1.Series("Component 1").Color = Color.FromArgb(100, Color.Blue)
-        Chart1.Series("Component 2").Color = Color.FromArgb(100, Color.Red)
-        Chart1.Series("Component 3").Color = Color.FromArgb(100, Color.Yellow)
-        Chart1.Series("Component 4").Color = Color.FromArgb(100, Color.Green)
+        chartResponse(MAX_INPUTS) += 10
+        RefreshChartLegend()
 
 
 
@@ -147,17 +769,17 @@ Public Class Main
         ' =========================================================
         ' Initialize obtained delays containers 
         ' =========================================================
-        ReDim ObtainedDelayDurations(MAXvCC, 1)
+        ReDim ObtainedDelayDurations(MAXvCC, MAX_INPUTS - 1)
         For c As Integer = 1 To MAXvCC
-            For l As Integer = 0 To 1
+            For l As Integer = 0 To MAX_INPUTS - 1
                 ObtainedDelayDurations(c, l) = New List(Of Integer)
             Next
         Next
 
-        DelayOnset(0) = -1
-        DelayOnset(1) = -1
-        DelayComp(0) = -1
-        DelayComp(1) = -1
+        For inputIndex As Integer = 0 To MAX_INPUTS - 1
+            DelayOnset(inputIndex) = -1
+            DelayComp(inputIndex) = -1
+        Next
 
 
         ' Start first component
@@ -171,7 +793,7 @@ Public Class Main
         ' =========================================================
         ' Select component
         ' =========================================================
-        If RandomCPres = True Then
+        If CompSequence IsNot Nothing Then
             vCC = CompSequence(CompIndexSeq)
             CompIndexSeq += 1
         End If
@@ -179,59 +801,41 @@ Public Class Main
         If AC(vCC).IterationsLeft > 0 Then AC(vCC).IterationsLeft -= 1
 
         ' =========================================================
-        ' Update component labels
-        ' =========================================================
-        lblActiveComponent.Text = vCC
-        lblComponentDuration.Text = AC(vCC).ComponentDuration
-        lblComponentStim.Text = AC(vCC).ComponentStimType
-        lblIterationsLeft.Text = AC(vCC).IterationsLeft
-
-        ' =========================================================
         ' Reset timers and outputs
         ' =========================================================
-        tmrComponentStim.Enabled = False
-        If AC(vCC).ComponentStimDuration > 0 Then
-            tmrComponentStim.Interval = AC(vCC).ComponentStimDuration * 1000
-            tmrComponentStim.Enabled = True
-        ElseIf AC(vCC).ComponentStimDuration = 0 Then
-            tmrComponentStim.Interval = 1
-            tmrComponentStim.Enabled = True
-        End If
+        tmrCOD.Enabled = False
+        CODL = 0
+        SendArduino("abeft")
+        TurnOffAllInputs()
+        StartComponentStimulus()
 
         If AC(vCC).COD > 0 Then tmrCOD.Interval = AC(vCC).COD
 
-        tmrLever1.Enabled = False
-        tmrLever2.Enabled = False
-        tmrDelay1.Enabled = False
-        tmrDelay2.Enabled = False
-        tmrStim1.Enabled = False
-        tmrStim2.Enabled = False
-        tmrNosepoke.Enabled = False
-        tmrDelaySignal1.Enabled = False
-        tmrDelaySignal2.Enabled = False
+        For inputIndex As Integer = 0 To MAX_INPUTS - 1
+            ScheduleTimers(inputIndex).Enabled = False
+            DelayTimers(inputIndex).Enabled = False
+            FeedbackTimers(inputIndex).Enabled = False
+            DelaySignalTimers(inputIndex).Enabled = False
+        Next
 
         ' Reset current delay onset markers for the new component
-        DelayOnset(0) = -1
-        DelayOnset(1) = -1
-        DelayComp(0) = -1
-        DelayComp(1) = -1
+        For inputIndex As Integer = 0 To MAX_INPUTS - 1
+            DelayOnset(inputIndex) = -1
+            DelayComp(inputIndex) = -1
+        Next
 
+        WriteRawEvent("StartComponent" & vCC)
 
-        Arduino.WriteLine("a")
-        Arduino.WriteLine("b")
-        Arduino.WriteLine("t")
-
-        WriteLine(1, vTimeNow, "StartComponent" & vCC)
-
-        tmrComponentDuration.Interval = AC(vCC).ComponentDuration * 1000
-        AC(vCC).ComponentDuration_measured(AC(vCC).IterationsLeft) = lblTime.Text
+        tmrComponentDuration.Interval = Math.Max(1, CInt(AC(vCC).ComponentDuration * 1000))
+        AC(vCC).ComponentDuration_measured(AC(vCC).IterationsLeft) = SessionTimeSeconds
         tmrComponentDuration.Enabled = True
 
         ' =========================================================
         ' Reset per-component data
         ' =========================================================
-        VIList(0) = New List(Of Integer)
-        VIList(1) = New List(Of Integer)
+        For inputIndex As Integer = 0 To MAX_INPUTS - 1
+            VIList(inputIndex) = New List(Of Integer)
+        Next
 
         ' -----------------------------
         ' IMPORTANT CHANGE:
@@ -241,71 +845,52 @@ Public Class Main
         ' ObtainedDelays(0) = New List(Of Integer)
         ' ObtainedDelays(1) = New List(Of Integer)
 
-        lblSubject.Text = SetUp.txtSubject.Text
-        lblSession.Text = SetUp.txtSession.Text
-        lblCOM.Text = SetUp.txtCOM.Text
+        If AC(vCC).HouselightOnOff = True Then SendArduino("H")
+        If AC(vCC).HouselightOnOff = False Then SendArduino("h")
 
-        If AC(vCC).HouselightOnOff = True Then Arduino.WriteLine("H")
-        If AC(vCC).HouselightOnOff = False Then Arduino.WriteLine("h")
+        For inputIndex As Integer = 0 To ActiveInputCount() - 1
+            If AC(vCC).DelayDuration(inputIndex) > 0 Then DelayTimers(inputIndex).Interval = Math.Max(1, CInt(AC(vCC).DelayDuration(inputIndex) * 1000))
+            If AC(vCC).DelaySignalDuration(inputIndex) > 0 Then DelaySignalTimers(inputIndex).Interval = Math.Max(1, CInt(AC(vCC).DelaySignalDuration(inputIndex) * 1000))
+            If AC(vCC).FeedbackDuration(inputIndex) > 0 Then FeedbackTimers(inputIndex).Interval = Math.Max(1, CInt(AC(vCC).FeedbackDuration(inputIndex) * 1000))
 
-        If AC(vCC).DelayDuration(0) > 0 Then tmrDelay1.Interval = Math.Max(1, AC(vCC).DelayDuration(0) * 1000)
-        If AC(vCC).DelayDuration(1) > 0 Then tmrDelay2.Interval = Math.Max(1, AC(vCC).DelayDuration(1) * 1000)
+            If IsExtinctionSchedule(inputIndex) = False AndAlso AC(vCC).Reinforcer(inputIndex) <> "N/A" AndAlso AC(vCC).Magnitude(inputIndex) <= 0 Then
+                AC(vCC).Magnitude(inputIndex) = 1
+            End If
 
-        If AC(vCC).DelaySignalDuration(0) > 0 Then tmrDelaySignal1.Interval = Math.Max(1, AC(vCC).DelaySignalDuration(0) * 1000)
-        If AC(vCC).DelaySignalDuration(1) > 0 Then tmrDelaySignal2.Interval = Math.Max(1, AC(vCC).DelaySignalDuration(1) * 1000)
-
-        If AC(vCC).FeedbackDuration(0) > 0 Then tmrStim1.Interval = Math.Max(1, AC(vCC).FeedbackDuration(0) * 1000)
-        If AC(vCC).FeedbackDuration(1) > 0 Then tmrStim2.Interval = Math.Max(1, AC(vCC).FeedbackDuration(1) * 1000)
-
-        ' Lever 1
-        If AC(vCC).ScheduleType(0) <> "" AndAlso AC(vCC).ScheduleType(0).ToLower() <> "extinction" Then
-            Arduino.WriteLine("L") ' extiende
-        Else
-            Arduino.WriteLine("l") ' retrae
-        End If
-
-        ' Lever 2
-        If AC(vCC).ScheduleType(1) <> "" AndAlso AC(vCC).ScheduleType(1).ToLower() <> "extinction" Then
-            Arduino.WriteLine("M") ' extiende
-        Else
-            Arduino.WriteLine("m") ' retrae
-        End If
+            SetInputOutput(inputIndex, NormalizedScheduleType(inputIndex) <> "" AndAlso IsExtinctionSchedule(inputIndex) = False)
+            PalIO(inputIndex) = NormalizedScheduleType(inputIndex) <> "" AndAlso IsExtinctionSchedule(inputIndex) = False
+        Next
 
         ' =========================================================
-        ' Reset ratio counters & Nosepoke register
+        ' Reset ratio counters
         ' =========================================================
-        RatioGoal(0) = 0
-        RatioGoal(1) = 0
-        RatioCount(0) = 0
-        RatioCount(1) = 0
-        NosepokeIn(0) = False
-        tmrNosepoke.Enabled = False
-
+        For inputIndex As Integer = 0 To MAX_INPUTS - 1
+            RatioGoal(inputIndex) = 0
+            RatioCount(inputIndex) = 0
+            refRdy(inputIndex) = False
+        Next
         ' =========================================================
         ' Initialize schedules
         ' =========================================================
-        If AC(vCC).ScheduleType(0) = "Fixed Ratio" Then FRGen(0)
-        If AC(vCC).ScheduleType(1) = "Fixed Ratio" Then FRGen(1)
-
-        If AC(vCC).ScheduleType(0) = "Variable Ratio" Then VRGen(0)
-        If AC(vCC).ScheduleType(1) = "Variable Ratio" Then VRGen(1)
-
-        If AC(vCC).ScheduleType(0) = "Fixed Interval" Then FIGen(0)
-        If AC(vCC).ScheduleType(1) = "Fixed Interval" Then FIGen(1)
-
-        If AC(vCC).ScheduleType(0).Contains("Variable Interval") Then VIGen(0)
-        If AC(vCC).ScheduleType(1).Contains("Variable Interval") Then VIGen(1)
+        For inputIndex As Integer = 0 To ActiveInputCount() - 1
+            InitializeSchedule(inputIndex)
+        Next
 
         ' =========================================================
-        ' Update schedule labels and logging
+        ' Update schedule logging
         ' =========================================================
-        lblL1.Text = AC(vCC).ScheduleType(0) & " " & AC(vCC).ScheduleValue(0)
-        lblL2.Text = AC(vCC).ScheduleType(1) & " " & AC(vCC).ScheduleValue(1)
+        For inputIndex As Integer = 0 To ActiveInputCount() - 1
+            SetSimulationButton(inputIndex, True)
 
-        WriteLine(1, "Lever 1 Schedule: " & lblL1.Text)
-        WriteLine(1, "Lever 2 Schedule: " & lblL2.Text)
-        WriteLine(2, "Lever 1 Schedule: " & lblL1.Text)
-        WriteLine(2, "Lever 2 Schedule: " & lblL2.Text)
+            Dim scheduleLogText As String = InputLabel(inputIndex) & " Schedule: " & ScheduleText(inputIndex)
+            WriteLine(2, scheduleLogText)
+        Next
+
+        For inputIndex As Integer = ActiveInputCount() To MAX_INPUTS - 1
+            SetSimulationButton(inputIndex, False)
+        Next
+
+        RefreshMainTables()
 
         tmrChrt.Interval = 1000
         tmrChrt.Enabled = True
@@ -317,7 +902,7 @@ Public Class Main
         ' Registers a response and evaluates whether a reinforcer is available
         ' for ratio- or interval-based schedules.
 
-        If tmrStart.Enabled = False Then
+        If SessionStarted AndAlso SessionEnding = False AndAlso tmrStart.Enabled = False Then
 
             ' Increment real-time response counter for plotting
             chartResponse(Lever) += 1
@@ -326,228 +911,120 @@ Public Class Main
             ' Responses during the inter-component interval (ICI)
             ' ---------------------------------------------------------
             If tmrICI.Enabled = True Then
-                WriteLine(1, vTimeNow, Lever + 1, "ICIResponse")
+                WriteRawEvent("ICIResponse" & (Lever + 1))
                 ' Responses during ICI are logged but do not affect schedules
 
             Else
-
-                ' ---------------------------------------------------------
-                ' Changeover Delay (COD) handling
-                ' ---------------------------------------------------------
-                If tmrCOD.Interval > 0 And tmrCOD.Enabled = False Then
-                    tmrCOD.Enabled = True
-                    CODL = Lever + 1
+                If tmrCOD.Enabled Then
+                    ResponseCount(vCC, Lever) += 1
+                    RefreshInputStatusTable()
+                    WriteRawEvent("CODResponse" & (Lever + 1))
+                    Exit Sub
                 End If
 
-                ' Allow response only if COD has expired or no COD is active
-                If Lever + 1 = CODL Or CODL = 0 Then
+                ' Deliver programmed feedback stimulus (if any)
+                If AC(vCC).FeedbackDuration(Lever) > 0 Then Stimulus(Lever)
 
-                    ' Deliver programmed feedback stimulus (if any)
-                    If AC(vCC).FeedbackDuration(Lever) > 0 Then Stimulus(Lever)
+                ' ---------------------------------------------------------
+                ' Extinction 
+                ' ---------------------------------------------------------
+                If IsExtinctionSchedule(Lever) Then
 
-                    ' ---------------------------------------------------------
-                    ' Extinction 
-                    ' ---------------------------------------------------------
-                    If (AC(vCC).ScheduleType(0) = "Extinction" And Lever = 0) Or
-                   (AC(vCC).ScheduleType(1) = "Extinction" And Lever = 1) Then
-
-                        ResponseCount(vCC, Lever) += 1
-                        Me.Controls("lblResponses" & (Lever + 1)).Text = ResponseCount(vCC, Lever)
-                        WriteLine(1, vTimeNow, "E" & Lever + 1)
-
-                    Else
-                        ' ---------------------------------------------------------
-                        ' Responses outside reinforcement delay
-                        ' ---------------------------------------------------------
-                        If tmrDelay1.Enabled = False And tmrDelay2.Enabled = False Then
-
-                            WriteLine(1, vTimeNow, vCC & Lever + 1)
-                            ResponseCount(vCC, Lever) += 1
-                            Me.Controls("lblResponses" & (Lever + 1)).Text = ResponseCount(vCC, Lever)
-
-                            ' Deliver reinforcer if interval has elapsed
-                            If refRdy(Lever) = True Then Reinforce(Lever, False)
-
-                            ' Update ratio counters (FR / VR)
-                            Ratio(Lever)
-
-                            ' ---------------------------------------------------------
-                            ' Responses during reinforcement delay
-                            ' ---------------------------------------------------------
-                        ElseIf tmrDelay1.Enabled Then
-                            WriteLine(1, vTimeNow, "D1")
-                            ResponseCountDel(vCC, Lever) += 1
-
-                        ElseIf tmrDelay2.Enabled Then
-                            WriteLine(1, vTimeNow, "D2")
-                            ResponseCountDel(vCC, Lever) += 1
-                        End If
-
-
-
-                    End If
+                    ResponseCount(vCC, Lever) += 1
+                    RefreshInputStatusTable()
+                    WriteRawEvent("E" & (Lever + 1))
 
                 Else
-                    ' Response blocked by active changeover delay
-                    WriteLine(1, vTimeNow, Lever + 1, "CODResponse")
+                    ' ---------------------------------------------------------
+                    ' Responses outside reinforcement delay
+                    ' ---------------------------------------------------------
+                    If AnyDelayActive() = False Then
+
+                        WriteRawEvent(CStr(Lever + 1))
+                        ResponseCount(vCC, Lever) += 1
+                        RefreshInputStatusTable()
+
+                        If IsRatioSchedule(Lever) Then
+                            Ratio(Lever)
+                        ElseIf IsIntervalSchedule(Lever) AndAlso refRdy(Lever) = True Then
+                            Reinforce(Lever, False)
+                        End If
+
+                        ' ---------------------------------------------------------
+                        ' Responses during reinforcement delay
+                        ' ---------------------------------------------------------
+                    Else
+                        Dim activeDelay As Integer = FirstActiveDelayIndex()
+                        WriteRawEvent("D" & (activeDelay + 1))
+                        ResponseCountDel(vCC, Lever) += 1
+                        RefreshInputStatusTable()
+                    End If
                 End If
 
+                If AC(vCC).COD > 0 Then
+                    tmrCOD.Interval = Math.Max(1, CInt(AC(vCC).COD))
+                    tmrCOD.Enabled = True
+                End If
             End If
         End If
-    End Sub
-
-
-    Private Sub Nosepoke(Nose As Integer)
-
-        ' Registers only the ONSET of the nosepoke (entry), not sustained contact.
-        ' A new event is allowed only after the subject exits and re-enters.
-
-        If tmrStart.Enabled = False Then
-
-            ' Current raw state coming from Arduino stream:
-            ' In your code: value <> 1 means "active" (beam broken / nosepoke present),
-            ' value = 1 means "inactive".
-            'Dim isActive As Boolean = (Actual_Response(2) <> 1)
-
-            '' 1) ONSET: active now, but previously OUT -> register once
-            ' If isActive = True AndAlso NosepokeIn(Nose) = False Then
-            'NosepokeIn(Nose) = True
-
-            ' Optional debounce window (keeps your original timer logic)
-            ' If tmrNosepoke.Enabled = False Then
-            'tmrNosepoke.Enabled = True
-
-            If tmrDelay1.Enabled = True Or tmrDelay2.Enabled = True Then
-                WriteLine(1, vTimeNow, "D" & Nose + 3)
-                NosepokeCountDel(vCC) += 1
-            Else
-                NosepokeCount(Nose) += 1
-                lblTrayRs.Text = NosepokeCount(Nose)
-                chartResponse(2) += 1
-                WriteLine(1, vTimeNow, Nose + 3)
-            End If
-        End If
-
-        '  End If
-
-        ' 2) OFFSET: inactive now -> re-arm for the next entry
-        '  If isActive = False Then
-        'NosepokeIn(Nose) = False
-        'End If
-
-        ' End If
-
     End Sub
 
 
     Private Sub Stimulus(Lever)
+        ActivateStimulus(AC(vCC).FeedbackType(Lever), True)
 
-        ' Activates feedback stimuli associated with the selected lever
-        ' according to the programmed feedback configuration.
-
-        If Lever = 0 Then
-
-            If AC(vCC).FeedbackType(0).Contains("Light 1") = True Then Arduino.WriteLine("A")
-            If AC(vCC).FeedbackType(0).Contains("Light 2") = True Then Arduino.WriteLine("B")
-            If AC(vCC).FeedbackType(0).Contains("Tone") = True Then Arduino.WriteLine("T")
-            If AC(vCC).FeedbackType(0).Contains("Houselight") = True Then Arduino.WriteLine("H")
-
-            ' Time-out feedback suspends component stimulus presentation
-            If AC(vCC).FeedbackType(0).Contains("Time Out") = True Then
-                tmrComponentStim.Enabled = False
-                Arduino.WriteLine("abthlm")
-            End If
-
-            tmrStim1.Enabled = True
-
-        ElseIf Lever = 1 Then
-
-            If AC(vCC).FeedbackType(1).Contains("Light 1") = True Then Arduino.WriteLine("A")
-            If AC(vCC).FeedbackType(1).Contains("Light 2") = True Then Arduino.WriteLine("B")
-            If AC(vCC).FeedbackType(1).Contains("Tone") = True Then Arduino.WriteLine("T")
-            If AC(vCC).FeedbackType(1).Contains("Houselight") = True Then Arduino.WriteLine("H")
-
-            ' Time-out feedback suspends component stimulus presentation
-            If AC(vCC).FeedbackType(1).Contains("Time Out") = True Then
-                tmrComponentStim.Enabled = False
-                Arduino.WriteLine("abthlm")
-            End If
-
-            tmrStim2.Enabled = True
+        If AC(vCC).FeedbackType(Lever).Contains("Time Out") = True Then
+            tmrComponentStim.Enabled = False
+            tmrComponentLightStim.Enabled = False
+            SendArduino("abefhtlmcdno")
         End If
+
+        FeedbackTimers(Lever).Enabled = True
+    End Sub
+
+    Private Sub ActivateStimulus(stimulusType As String, turnOn As Boolean, Optional includeTone As Boolean = True)
+        If stimulusType Is Nothing Then Exit Sub
+
+        If stimulusType.Contains("Light 1") = True Then SendArduino(If(turnOn, "A", "a"))
+        If stimulusType.Contains("Light 2") = True Then SendArduino(If(turnOn, "B", "b"))
+        If stimulusType.Contains("Light 3") = True Then SendArduino(If(turnOn, "E", "e"))
+        If stimulusType.Contains("Light 4") = True Then SendArduino(If(turnOn, "F", "f"))
+        If includeTone AndAlso stimulusType.Contains("Tone") = True Then SendArduino(If(turnOn, "T", "t"))
+        If stimulusType.Contains("Houselight") = True Then SendArduino(If(turnOn, "H", "h"))
     End Sub
 
     Private Sub Ratio(Lever As Integer)
 
-        ' Counts responses under ratio schedules and sets the reinforcer
-        ' availability flag when the ratio requirement is met.
+        ' Counts responses under ratio schedules and delivers the reinforcer
+        ' when the fixed or variable response requirement is met.
 
         If RatioGoal(Lever) <> 0 Then
             RatioCount(Lever) += 1
-
             If RatioCount(Lever) >= RatioGoal(Lever) Then
-                refRdy(Lever) = True
-
-                If Lever = 0 Then lblRfR1.Text = refRdy(0)
-                If Lever = 1 Then lblRfR2.Text = refRdy(1)
-
-                Reinforce(Lever, False)
                 RatioCount(Lever) = 0
+                Reinforce(Lever, False)
+                RefreshInputStatusTable()
             End If
         End If
     End Sub
 
     Private Sub Reinforce(Lever As Integer, Delay As Boolean)
 
-        ' Lever 1: initiate reinforcement delay
-        If Lever = 0 AndAlso AC(vCC).DelayDuration(0) > 0 AndAlso Delay = False Then
+        If Lever >= 0 AndAlso Lever < MAX_INPUTS AndAlso AC(vCC).DelayDuration(Lever) > 0 AndAlso Delay = False Then
+            DelayTimers(Lever).Enabled = True
+            If AC(vCC).DelayRetract(Lever) = True Then SetInputOutput(Lever, False)
 
-            tmrDelay1.Enabled = True
-            If AC(vCC).DelayRetract(Lever) = True Then Arduino.WriteLine("l")
+            DelayOnset(Lever) = vTimeNow
+            DelayComp(Lever) = vCC
 
-            ' Store onset time for this delay (per lever)
-            DelayOnset(0) = vTimeNow
-            DelayComp(0) = vCC
+            ActivateStimulus(AC(vCC).DelayType(Lever), True)
 
-
-            ' Activate delay-associated stimuli
-            If AC(vCC).DelayType(0) <> "" Then
-                If AC(vCC).DelayType(0).Contains("Light 1") = True Then Arduino.WriteLine("A")
-                If AC(vCC).DelayType(0).Contains("Light 2") = True Then Arduino.WriteLine("B")
-                If AC(vCC).DelayType(0).Contains("Tone") = True Then Arduino.WriteLine("T")
-                If AC(vCC).DelayType(0).Contains("Houselight") = True Then Arduino.WriteLine("H")
+            If AC(vCC).DelaySignalDuration(Lever) > 0 AndAlso AC(vCC).DelaySignalDuration(Lever) < AC(vCC).DelayDuration(Lever) Then
+                DelaySignalTimers(Lever).Enabled = True
             End If
 
-            If AC(vCC).DelaySignalDuration(0) > 0 AndAlso AC(vCC).DelaySignalDuration(0) < AC(vCC).DelayDuration(0) Then
-                tmrDelaySignal1.Enabled = True
-            End If
-
-            ' Lever 2: initiate reinforcement delay
-        ElseIf Lever = 1 AndAlso AC(vCC).DelayDuration(1) > 0 AndAlso Delay = False Then
-
-            tmrDelay2.Enabled = True
-            If AC(vCC).DelayRetract(Lever) = True Then Arduino.WriteLine("m")
-
-            ' Store onset time for this delay (per lever)
-            DelayOnset(1) = vTimeNow
-            DelayComp(1) = vCC
-
-
-            ' Activate delay-associated stimuli
-            If AC(vCC).DelayType(1) <> "" Then
-                If AC(vCC).DelayType(1).Contains("Light 1") = True Then Arduino.WriteLine("A")
-                If AC(vCC).DelayType(1).Contains("Light 2") = True Then Arduino.WriteLine("B")
-                If AC(vCC).DelayType(1).Contains("Tone") = True Then Arduino.WriteLine("T")
-                If AC(vCC).DelayType(1).Contains("Houselight") = True Then Arduino.WriteLine("H")
-            End If
-
-            If AC(vCC).DelaySignalDuration(1) > 0 AndAlso AC(vCC).DelaySignalDuration(1) < AC(vCC).DelayDuration(1) Then
-                tmrDelaySignal2.Enabled = True
-            End If
-
-            ' External reinforcer trigger (manual)
-        ElseIf Lever = 3 Then
-            Arduino.WriteLine("R")
+        ElseIf Lever = -1 Then
+            SendArduino("R")
 
             ' Deliver reinforcer now (immediate OR end-of-delay)
         Else
@@ -555,32 +1032,26 @@ Public Class Main
 
             RefCount(vCC, Lever) += 1
             RefCount_i(Lever) += 1
-            Me.Controls.Item("lblReinforcers" & (Lever + 1)).Text = RefCount(vCC, Lever)
 
             For i = 1 To AC(vCC).Magnitude(Lever)
-                Me.Controls("lblRfR" & (Lever + 1)).Text = refRdy(Lever)
-                Chart1.Series("Reinforcers " & Lever + 1).Points.AddXY(chartTime(Lever), chartResponse(Lever) + 3)
+                Dim seriesName As String = ReinforcerSeriesName(Lever)
+                If Chart1.Series.IndexOf(seriesName) >= 0 Then Chart1.Series(seriesName).Points.AddXY(chartTime(Lever), chartResponse(Lever))
                 ReinforcerDelivery(Lever)
             Next
+            RefreshInputStatusTable()
 
-            If AC(vCC).Magnitude(Lever) > 0 Then WriteLine(1, vTimeNow, "R" & Lever + 1)
+            If AC(vCC).Magnitude(Lever) > 0 Then WriteRawEvent("R" & (Lever + 1))
 
-            ' Reinitialize schedules after reinforcement
-            If Lever = 0 Then
-                If AC(vCC).ScheduleType(0) = "Fixed Ratio" Then FRGen(0)
-                If AC(vCC).ScheduleType(0) = "Variable Ratio" Then VRGen(0)
-                If AC(vCC).ScheduleType(0) = "Fixed Interval" Then FIGen(0)
-                If AC(vCC).ScheduleType(0).Contains("Variable Interval") Then VIGen(0)
-            ElseIf Lever = 1 Then
-                If AC(vCC).ScheduleType(1) = "Fixed Ratio" Then FRGen(1)
-                If AC(vCC).ScheduleType(1) = "Variable Ratio" Then VRGen(1)
-                If AC(vCC).ScheduleType(1) = "Fixed Interval" Then FIGen(1)
-                If AC(vCC).ScheduleType(1).Contains("Variable Interval") Then VIGen(1)
-            End If
+            InitializeSchedule(Lever)
         End If
 
         ' Check component termination based on maximum reinforcers
-        If (RefCount_i(0) + RefCount_i(1)) >= AC(vCC).MaxRefs AndAlso AC(vCC).MaxRefs > 0 Then
+        Dim componentRefs As Integer = 0
+        For inputIndex As Integer = 0 To ActiveInputCount() - 1
+            componentRefs += RefCount_i(inputIndex)
+        Next
+
+        If componentRefs >= AC(vCC).MaxRefs AndAlso AC(vCC).MaxRefs > 0 Then
             ComponentDuration_Code()
         End If
 
@@ -593,44 +1064,38 @@ Public Class Main
         ' the programmed reinforcer type.
 
         If AC(vCC).Reinforcer(Lever) = "Pellet" Then
-            Arduino.WriteLine("R")
+            SendArduino("R")
 
         ElseIf AC(vCC).Reinforcer(Lever) = "Liquid" Then
-            Arduino.WriteLine("W")
+            SendArduino("W")
 
         ElseIf AC(vCC).Reinforcer(Lever) = "Random" Then
-            Dim Rand As New Random
             Dim Crit As New Double
-            Crit = Rand.Next(1, 101)
+            Crit = SessionRandom.Next(1, 101)
 
             If Crit <= AC(vCC).PelletP(Lever) Then
-                Arduino.WriteLine("R")
+                SendArduino("R")
             Else
-                Arduino.WriteLine("W")
+                SendArduino("W")
             End If
         End If
     End Sub
 
     Private Sub FRGen(x) 'This initializes Fixed Ratio schedules depending on the selected values / operanda.
         'FR schedules just check current responses against the specified schedule value.
-        RatioGoal(x) = AC(vCC).ScheduleValue(x)
+        RatioGoal(x) = Math.Max(1, AC(vCC).ScheduleValue(x))
     End Sub
     Private Sub VRGen(x) 'This initializes Variable Ratio schedules depending on the selected values / operanda.
         'VR schedules calculate a range between half and 1.5 times the specified schedule value and pick a random value from that range. 
-        Randomize()
-        Dim Rand As New Random
-        RatioGoal(x) = Rand.Next((AC(vCC).ScheduleValue(x) / 2), (AC(vCC).ScheduleValue(x) * 1.5))
+        Dim minGoal As Integer = Math.Max(1, CInt(Math.Floor(AC(vCC).ScheduleValue(x) / 2.0)))
+        Dim maxGoal As Integer = Math.Max(minGoal + 1, CInt(Math.Ceiling(AC(vCC).ScheduleValue(x) * 1.5)))
+        RatioGoal(x) = SessionRandom.Next(minGoal, maxGoal + 1)
     End Sub
     Private Sub FIGen(x) 'This initializes Fixed Interval schedules depending on the selected values / operanda.
         'FI schedules use a timer to check if the specified schedule value has elapsed.
         'Visual Basic manages time in miliseconds, so values are multiplied by 1000.
-        If x = 0 Then
-            tmrLever1.Interval = (AC(vCC).ScheduleValue(0) + 1) * 1000
-            tmrLever1.Enabled = True
-        ElseIf x = 1 Then
-            tmrLever2.Interval = (AC(vCC).ScheduleValue(1) + 1) * 1000
-            tmrLever2.Enabled = True
-        End If
+        ScheduleTimers(x).Interval = Math.Max(1, (AC(vCC).ScheduleValue(x) + 1) * 1000)
+        ScheduleTimers(x).Enabled = True
     End Sub
     Private Sub VIGen(list As Integer) 'This initializes Variable Interval schedules depending on the selected values / operanda.
         'VI schedules employ Hantula's (1991) method for Fleshler & Hoffman's (1968) iterative equation on Visual Basic.
@@ -641,14 +1106,12 @@ Public Class Main
         Dim rd(n)
         Dim vi(n)
         Dim order
-        Randomize()
-        If list = 0 Then v = AC(vCC).ScheduleValue(0)
-        If list = 1 Then v = AC(vCC).ScheduleValue(1)
+        v = AC(vCC).ScheduleValue(list)
         If VIList(list).Count = 0 Then
             For m As Integer = 1 To n
                 If m = n Then vi(m) = v * (1 + Log(n)) : GoTo 1
                 vi(m) = v * (1 + (Log(n)) + (n - m) * (Log(n - m)) - (n - m + 1) * Log(n - m + 1))
-1:              order = Int((n * Rnd() + 1))
+1:              order = SessionRandom.Next(1, n + 1)
                 If rd(order) = 0 Then
                     rd(order) = vi(m)
                 Else
@@ -659,57 +1122,58 @@ Public Class Main
                 VIList(list).Add(rd(a))
             Next
         End If
-        Dim Rand As New Random
-        Dim p As Integer = Rand.Next(VIList(list).Count)
-        If list = 0 Then 'The first list saves VI values for schedules on operanda 1.
-            tmrLever1.Interval = (VIList(list).Item(p) + 1) * 1000
-            tmrLever1.Enabled = True
-        End If
-        If list = 1 Then 'The second list saves VI values for schedules on operanda 2.
-            tmrLever2.Interval = (VIList(list).Item(p) + 1) * 1000
-            tmrLever2.Enabled = True
-        End If
+        Dim p As Integer = SessionRandom.Next(VIList(list).Count)
+        ScheduleTimers(list).Interval = Math.Max(1, (VIList(list).Item(p) + 1) * 1000)
+        ScheduleTimers(list).Enabled = True
         VIList(list).RemoveAt(p)
     End Sub
-    Private Sub tmrSchedule1_Tick(sender As Object, e As EventArgs) Handles tmrLever1.Tick 'This keeps track of time for interval schedules on operanda 1.
-        tmrLever1.Enabled = False
-        refRdy(0) = True
-        lblRfR1.Text = refRdy(0)
+
+    Private Sub InitializeSchedule(inputIndex As Integer)
+        Dim scheduleType As String = NormalizedScheduleType(inputIndex)
+        If scheduleType = "fixed ratio" Then FRGen(inputIndex)
+        If scheduleType = "variable ratio" Then VRGen(inputIndex)
+        If scheduleType = "fixed interval" Then FIGen(inputIndex)
+        If scheduleType.Contains("variable interval") Then VIGen(inputIndex)
     End Sub
-    Private Sub tmrSchedule2_Tick(sender As Object, e As EventArgs) Handles tmrLever2.Tick 'This keeps track of time for interval schedules on operanda 2.
-        tmrLever2.Enabled = False
-        refRdy(1) = True
-        lblRfR2.Text = refRdy(1)
+
+    Private Sub ScheduleTimer_Tick(sender As Object, e As EventArgs)
+        Dim inputIndex As Integer = InputTimerIndex(ScheduleTimers, sender)
+        If inputIndex < 0 Then Exit Sub
+
+        ScheduleTimers(inputIndex).Enabled = False
+        refRdy(inputIndex) = True
+        RefreshInputStatusTable()
     End Sub
     Private Sub Finish()
+        SessionClosed = True
+        SessionStarted = False
+        SessionEnding = False
+        tmrChrt.Enabled = False
 
         Chart1.SaveImage("C:\Data\Charts\" & SetUp.txtSubject.Text & "_" & SetUp.txtSession.Text & "_chart_" & Format(Date.Now, "hh_mm_ss") & ".png", ChartImageFormat.Png)
-        Arduino.WriteLine("nhtabcd") 'Turns off every output on the Arduino.
-        Arduino.Close() 'Terminates Arduino-VB communication.
+        SendArduino("htabeflmcdnop") 'Turns off every output on the Arduino.
+        If Arduino IsNot Nothing AndAlso Arduino.IsOpen Then Arduino.Close() 'Terminates Arduino-VB communication.
 
-        ' ---------------------------------------------------------
-        ' Obtained delays summary (per component, per lever)
-        ' ---------------------------------------------------------
-        WriteLine(2, "Obtained delays (seconds) by component:")
+        FileClose(1)
 
-        For s = 1 To MAXvCC
-            If ObtainedDelayDurations(s, 0).Count > 0 Then
-                Dim secs1 = ObtainedDelayDurations(s, 0).Select(Function(ms) Math.Round(ms / 1000.0, 3)).ToArray()
-                WriteLine(2, "Component " & s & " L1: " & String.Join(", ", secs1))
-            Else
-                WriteLine(2, "Component " & s & " L1: (none)")
-            End If
+        If HasAnyObtainedDelay() Then
+            ' ---------------------------------------------------------
+            ' Obtained delays summary (per component, per input)
+            ' ---------------------------------------------------------
+            WriteLine(2, "Obtained delays (seconds) by component:")
 
-            If ObtainedDelayDurations(s, 1).Count > 0 Then
-                Dim secs2 = ObtainedDelayDurations(s, 1).Select(Function(ms) Math.Round(ms / 1000.0, 3)).ToArray()
-                WriteLine(2, "Component " & s & " L2: " & String.Join(", ", secs2))
-            Else
-                WriteLine(2, "Component " & s & " L2: (none)")
-            End If
-        Next
+            For s = 1 To MAXvCC
+                For inputIndex As Integer = 0 To ActiveInputCount(s) - 1
+                    If ObtainedDelayDurations(s, inputIndex).Count > 0 Then
+                        Dim secs = ObtainedDelayDurations(s, inputIndex).Select(Function(ms) Math.Round(ms / 1000.0, 3)).ToArray()
+                        WriteLine(2, "Component " & s & " " & InputLabel(inputIndex, s) & ": " & String.Join(", ", secs))
+                    End If
+                Next
+            Next
+        End If
 
 
-        For i = 1 To 2
+        For i = 2 To 2
 
             ' ---------------------------------------------------------
             ' Compute the *measured* duration for each component (seconds)
@@ -729,8 +1193,9 @@ Public Class Main
             WriteLine(i, "Responses:")
             For s = 1 To MAXvCC
                 If AC(s).ComponentDuration > 0 Then
-                    WriteLine(i, "Lever 1 Component " & s & ": " & ResponseCount(s, 0))
-                    WriteLine(i, "Lever 2 Component " & s & ": " & ResponseCount(s, 1))
+                    For inputIndex As Integer = 0 To ActiveInputCount(s) - 1
+                        WriteLine(i, InputLabel(inputIndex, s) & " Component " & s & ": " & ResponseCount(s, inputIndex))
+                    Next
                 End If
             Next
 
@@ -740,8 +1205,9 @@ Public Class Main
             WriteLine(i, "Response rates:")
             For s = 1 To MAXvCC
                 If AC(s).ComponentDuration > 0 Then
-                    WriteLine(i, "Lever 1 Component " & s & ": " & (ResponseCount(s, 0) / (AC(s).ComponentDuration / 60)))
-                    WriteLine(i, "Lever 2 Component " & s & ": " & (ResponseCount(s, 1) / (AC(s).ComponentDuration / 60)))
+                    For inputIndex As Integer = 0 To ActiveInputCount(s) - 1
+                        WriteLine(i, InputLabel(inputIndex, s) & " Component " & s & ": " & (ResponseCount(s, inputIndex) / (AC(s).ComponentDuration / 60)))
+                    Next
                 End If
             Next
 
@@ -751,8 +1217,9 @@ Public Class Main
             WriteLine(i, "Reinforcers:")
             For s = 1 To MAXvCC
                 If AC(s).ComponentDuration > 0 Then
-                    WriteLine(i, "Lever 1 Component " & s & ": " & RefCount(s, 0))
-                    WriteLine(i, "Lever 2 Component " & s & ": " & RefCount(s, 1))
+                    For inputIndex As Integer = 0 To ActiveInputCount(s) - 1
+                        WriteLine(i, InputLabel(inputIndex, s) & " Component " & s & ": " & RefCount(s, inputIndex))
+                    Next
                 End If
             Next
 
@@ -762,28 +1229,9 @@ Public Class Main
             WriteLine(i, "Reinforcer rates:")
             For s = 1 To MAXvCC
                 If AC(s).ComponentDuration > 0 Then
-                    WriteLine(i, "Lever 1 Component " & s & ": " & (RefCount(s, 0) / (AC(s).ComponentDuration / 60)))
-                    WriteLine(i, "Lever 2 Component " & s & ": " & (RefCount(s, 1) / (AC(s).ComponentDuration / 60)))
-                End If
-            Next
-
-            ' ---------------------------------------------------------
-            ' Nosepoke responses during delay (only components with duration > 0)
-            ' ---------------------------------------------------------
-            WriteLine(i, "Nosepoke responses during delay:")
-            For s = 1 To MAXvCC
-                If AC(s).ComponentDuration > 0 Then
-                    WriteLine(i, "Component " & s & ": " & NosepokeCountDel(s))
-                End If
-            Next
-
-            ' ---------------------------------------------------------
-            ' Nosepoke rates during delay (only components with duration > 0)
-            ' ---------------------------------------------------------
-            WriteLine(i, "Nosepoke rates during delay:")
-            For s = 1 To MAXvCC
-                If AC(s).ComponentDuration > 0 Then
-                    WriteLine(i, "Component " & s & ": " & (NosepokeCountDel(s) / (AC(s).ComponentDuration / 60)))
+                    For inputIndex As Integer = 0 To ActiveInputCount(s) - 1
+                        WriteLine(i, InputLabel(inputIndex, s) & " Component " & s & ": " & (RefCount(s, inputIndex) / (AC(s).ComponentDuration / 60)))
+                    Next
                 End If
             Next
 
@@ -793,12 +1241,9 @@ Public Class Main
             WriteLine(i, "Lever responses during delay:")
             For s = 1 To MAXvCC
                 If AC(s).ComponentDuration > 0 Then
-                    WriteLine(i, "Component " & s & " L1: " & ResponseCountDel(s, 0))
-                End If
-            Next
-            For s = 1 To MAXvCC
-                If AC(s).ComponentDuration > 0 Then
-                    WriteLine(i, "Component " & s & " L2: " & ResponseCountDel(s, 1))
+                    For inputIndex As Integer = 0 To ActiveInputCount(s) - 1
+                        WriteLine(i, "Component " & s & " " & InputLabel(inputIndex, s) & ": " & ResponseCountDel(s, inputIndex))
+                    Next
                 End If
             Next
 
@@ -808,19 +1253,16 @@ Public Class Main
             WriteLine(i, "Response rates during delay:")
             For s = 1 To MAXvCC
                 If AC(s).ComponentDuration > 0 Then
-                    WriteLine(i, "Component " & s & " L1: " & (ResponseCountDel(s, 0) / (AC(s).ComponentDuration / 60)))
-                End If
-            Next
-            For s = 1 To MAXvCC
-                If AC(s).ComponentDuration > 0 Then
-                    WriteLine(i, "Component " & s & " L2: " & (ResponseCountDel(s, 1) / (AC(s).ComponentDuration / 60)))
+                    For inputIndex As Integer = 0 To ActiveInputCount(s) - 1
+                        WriteLine(i, "Component " & s & " " & InputLabel(inputIndex, s) & ": " & (ResponseCountDel(s, inputIndex) / (AC(s).ComponentDuration / 60)))
+                    Next
                 End If
             Next
 
             ' ---------------------------------------------------------
             ' Session footer
             ' ---------------------------------------------------------
-            WriteLine(i, "Total time in minutes: " & lblTime.Text / 60)
+            WriteLine(i, "Total time in minutes: " & SessionTimeSeconds / 60)
             WriteLine(i, Format(Date.Now, "dd-MM-yyyy_hh-mm-ss"))
             WriteLine(i, "END") 'Signals that the session has ended on the data file.
             FileClose(i) 'Closes data file.
@@ -830,284 +1272,158 @@ Public Class Main
 
     End Sub
 
+    Private Sub Main_FormClosing(sender As Object, e As FormClosingEventArgs) Handles MyBase.FormClosing
+        SessionClosed = True
+        tmrChrt.Enabled = False
+        tmrStart.Enabled = False
+        tmrPostSession.Enabled = False
+        tmrComponentDuration.Enabled = False
+        tmrComponentStim.Enabled = False
+        tmrComponentLightStim.Enabled = False
+        tmrICI.Enabled = False
+        tmrCOD.Enabled = False
+        If Arduino IsNot Nothing AndAlso Arduino.IsOpen Then Arduino.Close()
+    End Sub
+
 
     Private Sub tmrChrt_Tick(sender As Object, e As EventArgs) Handles tmrChrt.Tick
 
         'This timer tick updates the chart once per second (tmrChrt.Interval = 1000).
         'It advances "chartTime" and plots current response counts plus a visual indicator of the active component.
 
-        For i = 0 To 3
+        For i = 0 To MAX_INPUTS
             'Advance the X-axis counters for each plotted stream (lever1, lever2, tray, and component indicator).
             chartTime(i) += 1
         Next
 
-        'Plot cumulative responses for each operandum/tray.
-        Chart1.Series("Lever 1").Points.AddXY(chartTime(0), chartResponse(0))
-        Chart1.Series("Lever 2").Points.AddXY(chartTime(1), chartResponse(1))
-        Chart1.Series("Tray").Points.AddXY(chartTime(2), chartResponse(2))
-
-        'During ICI, no component should be shown as active:
-        'all component series are pushed down by CompIndex so they remain visually "off".
-        If tmrICI.Enabled = True Then
-            Chart1.Series("Component 1").Points.AddXY(chartTime(3), chartResponse(3) - CompIndex)
-            Chart1.Series("Component 2").Points.AddXY(chartTime(3), chartResponse(3) - CompIndex)
-            Chart1.Series("Component 3").Points.AddXY(chartTime(3), chartResponse(3) - CompIndex)
-            Chart1.Series("Component 4").Points.AddXY(chartTime(3), chartResponse(3) - CompIndex)
-        Else
-            'When NOT in ICI, exactly one component is shown "on" at chartResponse(3),
-            'and the other component series are kept "off" by subtracting CompIndex.
-            If vCC = 1 Then
-                Chart1.Series("Component 1").Points.AddXY(chartTime(3), chartResponse(3))
-                Chart1.Series("Component 2").Points.AddXY(chartTime(3), chartResponse(3) - CompIndex)
-                Chart1.Series("Component 3").Points.AddXY(chartTime(3), chartResponse(3) - CompIndex)
-                Chart1.Series("Component 4").Points.AddXY(chartTime(3), chartResponse(3) - CompIndex)
-            ElseIf vCC = 2 Then
-                Chart1.Series("Component 1").Points.AddXY(chartTime(3), chartResponse(3) - CompIndex)
-                Chart1.Series("Component 2").Points.AddXY(chartTime(3), chartResponse(3))
-                Chart1.Series("Component 3").Points.AddXY(chartTime(3), chartResponse(3) - CompIndex)
-                Chart1.Series("Component 4").Points.AddXY(chartTime(3), chartResponse(3) - CompIndex)
-            ElseIf vCC = 3 Then
-                Chart1.Series("Component 1").Points.AddXY(chartTime(3), chartResponse(3) - CompIndex)
-                Chart1.Series("Component 2").Points.AddXY(chartTime(3), chartResponse(3) - CompIndex)
-                Chart1.Series("Component 3").Points.AddXY(chartTime(3), chartResponse(3))
-                Chart1.Series("Component 4").Points.AddXY(chartTime(3), chartResponse(3) - CompIndex)
-            ElseIf vCC = 4 Then
-                Chart1.Series("Component 1").Points.AddXY(chartTime(3), chartResponse(3) - CompIndex)
-                Chart1.Series("Component 2").Points.AddXY(chartTime(3), chartResponse(3) - CompIndex)
-                Chart1.Series("Component 3").Points.AddXY(chartTime(3), chartResponse(3) - CompIndex)
-                Chart1.Series("Component 4").Points.AddXY(chartTime(3), chartResponse(3))
+        For inputIndex As Integer = 0 To ActiveInputCount() - 1
+            Dim seriesName As String = ResponseSeriesName(inputIndex)
+            If Chart1.Series.IndexOf(seriesName) >= 0 Then
+                Chart1.Series(seriesName).Points.AddXY(chartTime(inputIndex), chartResponse(inputIndex))
             End If
+        Next
 
-        End If
+        For componentIndex As Integer = 1 To MAXvCC
+            Dim seriesName As String = ComponentSeriesName(componentIndex)
+            If Chart1.Series.IndexOf(seriesName) >= 0 Then
+                Dim yValue As Integer = chartResponse(MAX_INPUTS) - CompIndex
+                If tmrICI.Enabled = False AndAlso componentIndex = vCC Then yValue = chartResponse(MAX_INPUTS)
+                Chart1.Series(seriesName).Points.AddXY(chartTime(MAX_INPUTS), yValue)
+            End If
+        Next
 
         'If response counts get large, the component indicator line might overlap with the response lines.
         'This block shifts component-series Y-values upward once (by +10) to keep the component indicator readable.
-        If (chartResponse(0) > 200 Or chartResponse(1) > 200 Or chartResponse(2) > 200) And chartFlag(0) = False Then
+        Dim maxInputResponses As Integer = 0
+        For inputIndex As Integer = 0 To ActiveInputCount() - 1
+            If chartResponse(inputIndex) > maxInputResponses Then maxInputResponses = chartResponse(inputIndex)
+        Next
+
+        If maxInputResponses > 200 And chartFlag(0) = False Then
             chartFlag(0) = True
 
             'Shift only points that are above 0 (avoid moving the "off" baseline).
-            For Each pt As DataPoint In Chart1.Series("Component 1").Points
-                If pt.YValues(0) > 0 Then pt.YValues(0) += 10
-            Next
-            For Each pt As DataPoint In Chart1.Series("Component 2").Points
-                If pt.YValues(0) > 0 Then pt.YValues(0) += 10
-            Next
-            For Each pt As DataPoint In Chart1.Series("Component 3").Points
-                If pt.YValues(0) > 0 Then pt.YValues(0) += 10
-            Next
-            For Each pt As DataPoint In Chart1.Series("Component 4").Points
-                If pt.YValues(0) > 0 Then pt.YValues(0) += 10
+            For componentIndex As Integer = 1 To MAXvCC
+                Dim seriesName As String = ComponentSeriesName(componentIndex)
+                If Chart1.Series.IndexOf(seriesName) >= 0 Then
+                    For Each pt As DataPoint In Chart1.Series(seriesName).Points
+                        If pt.YValues(0) > 0 Then pt.YValues(0) += 10
+                    Next
+                End If
             Next
 
             'Update the stored offset so future "off" plotting stays aligned with the shifted points.
             CompIndex += 10
-            chartResponse(3) += 10
+            chartResponse(MAX_INPUTS) += 10
 
         End If
+
+        RefreshMainSessionTable(If(tmrICI.Enabled, "ICI", ""))
     End Sub
 
-    Private Sub tmrDelay1_Tick(sender As Object, e As EventArgs) Handles tmrDelay1.Tick
+    Private Sub DelayTimer_Tick(sender As Object, e As EventArgs)
+        Dim inputIndex As Integer = InputTimerIndex(DelayTimers, sender)
+        If inputIndex < 0 Then Exit Sub
 
-        tmrDelay1.Enabled = False
+        DelayTimers(inputIndex).Enabled = False
+        ActivateStimulus(AC(vCC).DelayType(inputIndex), False)
 
-        If AC(vCC).DelayType(0) <> "" Then
-            If AC(vCC).DelayType(0).Contains("Light 1") = True Then Arduino.WriteLine("a")
-            If AC(vCC).DelayType(0).Contains("Light 2") = True Then Arduino.WriteLine("b")
-            If AC(vCC).DelayType(0).Contains("Tone") = True Then Arduino.WriteLine("t")
-            If AC(vCC).DelayType(0).Contains("Houselight") = True Then Arduino.WriteLine("h")
-        End If
+        Reinforce(inputIndex, True)
+        RestoreRetractedInput(inputIndex)
 
-        ' Deliver reinforcer now
-        Reinforce(0, True)
-
-        If AC(vCC).DelayRetract(0) = True Then Arduino.WriteLine("L")
-
-        ' Save obtained delay duration ONLY if the component did NOT change
-        If DelayOnset(0) >= 0 AndAlso DelayComp(0) = vCC Then
-            Dim dur As Integer = vTimeNow - DelayOnset(0)
+        If DelayOnset(inputIndex) >= 0 AndAlso DelayComp(inputIndex) = vCC Then
+            Dim dur As Integer = vTimeNow - DelayOnset(inputIndex)
             If dur < 0 Then dur = 0
-            ObtainedDelayDurations(vCC, 0).Add(dur)
+            ObtainedDelayDurations(vCC, inputIndex).Add(dur)
         End If
 
-        DelayOnset(0) = -1
-        DelayComp(0) = -1
-
-
+        DelayOnset(inputIndex) = -1
+        DelayComp(inputIndex) = -1
     End Sub
 
-    Private Sub tmrDelay2_Tick(sender As Object, e As EventArgs) Handles tmrDelay2.Tick
+    Private Sub DelaySignalTimer_Tick(sender As Object, e As EventArgs)
+        Dim inputIndex As Integer = InputTimerIndex(DelaySignalTimers, sender)
+        If inputIndex < 0 Then Exit Sub
 
-        tmrDelay2.Enabled = False
-
-        If AC(vCC).DelayType(1) <> "" Then
-            If AC(vCC).DelayType(1).Contains("Light 1") = True Then Arduino.WriteLine("a")
-            If AC(vCC).DelayType(1).Contains("Light 2") = True Then Arduino.WriteLine("b")
-            If AC(vCC).DelayType(1).Contains("Tone") = True Then Arduino.WriteLine("t")
-            If AC(vCC).DelayType(1).Contains("Houselight") = True Then Arduino.WriteLine("h")
-        End If
-
-        ' Deliver reinforcer now
-        Reinforce(1, True)
-
-        If AC(vCC).DelayRetract(1) = True Then Arduino.WriteLine("M")
-
-        ' Save obtained delay duration ONLY if the component did NOT change
-        If DelayOnset(1) >= 0 AndAlso DelayComp(1) = vCC Then
-            Dim dur As Integer = vTimeNow - DelayOnset(1)
-            If dur < 0 Then dur = 0
-            ObtainedDelayDurations(vCC, 1).Add(dur)
-        End If
-
-        DelayOnset(1) = -1
-        DelayComp(1) = -1
-
-
+        DelaySignalTimers(inputIndex).Enabled = False
+        ActivateStimulus(AC(vCC).DelayType(inputIndex), False)
     End Sub
 
+    Private Sub FeedbackTimer_Tick(sender As Object, e As EventArgs)
+        Dim inputIndex As Integer = InputTimerIndex(FeedbackTimers, sender)
+        If inputIndex < 0 Then Exit Sub
 
-    Private Sub tmrDelaySignal1_Tick(sender As Object, e As EventArgs) Handles tmrDelaySignal1.Tick
-        tmrDelaySignal1.Enabled = False
-        If AC(vCC).DelayType(0) <> "" Then
-            If AC(vCC).DelayType(0).Contains("Light 1") = True Then Arduino.WriteLine("a")
-            If AC(vCC).DelayType(0).Contains("Light 2") = True Then Arduino.WriteLine("b")
-            If AC(vCC).DelayType(0).Contains("Tone") = True Then Arduino.WriteLine("t")
-            If AC(vCC).DelayType(0).Contains("Houselight") = True Then Arduino.WriteLine("h")
+        FeedbackTimers(inputIndex).Enabled = False
+        ActivateStimulus(AC(vCC).FeedbackType(inputIndex), False)
+
+        If AC(vCC).FeedbackType(inputIndex).Contains("Time Out") = True Then
+            For activeInput As Integer = 0 To ActiveInputCount() - 1
+                SetInputOutput(activeInput, AC(vCC).ScheduleType(activeInput) <> "" AndAlso AC(vCC).ScheduleType(activeInput).ToLower() <> "extinction")
+            Next
+            StartComponentStimulus()
+            If AC(vCC).HouselightOnOff = True Then SendArduino("H")
         End If
     End Sub
 
-    Private Sub tmrDelaySignal2_Tick(sender As Object, e As EventArgs) Handles tmrDelaySignal2.Tick
-        tmrDelaySignal2.Enabled = False
-        If AC(vCC).DelayType(1) <> "" Then
-            If AC(vCC).DelayType(1).Contains("Light 1") = True Then Arduino.WriteLine("a")
-            If AC(vCC).DelayType(1).Contains("Light 2") = True Then Arduino.WriteLine("b")
-            If AC(vCC).DelayType(1).Contains("Tone") = True Then Arduino.WriteLine("t")
-            If AC(vCC).DelayType(1).Contains("Houselight") = True Then Arduino.WriteLine("h")
-        End If
-    End Sub
+    Private Sub StartPostSession()
+        If SessionEnding Then Exit Sub
 
-    Private Sub tmrStim1_Tick(sender As Object, e As EventArgs) Handles tmrStim1.Tick
+        SessionEnding = True
+        SessionStarted = False
+        tmrComponentDuration.Enabled = False        'Stop the component duration timer.
+        tmrComponentStim.Enabled = False            'Stop any component-related stimulation timer.
+        tmrComponentLightStim.Enabled = False
+        tmrChrt.Enabled = False
 
-        'This tick ends the brief response-produced feedback for Lever 1.
-        'It turns off the feedback stimuli and, if feedback included a Time Out,
-        'it resumes the component stimulation and lever availability after TO ends.
+        RefreshMainSessionTable("Post-session")
+        RefreshInputStatusTable()
+        UpdateManualControls()
 
-        tmrStim1.Enabled = False
+        'Disable all manual interaction controls to prevent further responses.
+        btnFinish.Enabled = False
+        For inputIndex As Integer = 0 To MAX_INPUTS - 1
+            SetSimulationButton(inputIndex, False)
+            SetManualButton("btnInputOutput" & (inputIndex + 1), inputIndex, False, "In/Out " & (inputIndex + 1))
+            SetManualButton("btnInputReinforcer" & (inputIndex + 1), inputIndex, False, "Rf " & (inputIndex + 1))
+        Next
 
-        'Turn off feedback stimuli for Lever 1.
-        If AC(vCC).FeedbackType(0).Contains("Light 1") = True Then Arduino.WriteLine("a")
-        If AC(vCC).FeedbackType(0).Contains("Light 2") = True Then Arduino.WriteLine("b")
-        If AC(vCC).FeedbackType(0).Contains("Tone") = True Then Arduino.WriteLine("t")
-        If AC(vCC).FeedbackType(0).Contains("Houselight") = True Then Arduino.WriteLine("h")
-
-        'If this feedback period implemented a Time Out, resume component stimulation afterwards.
-        If AC(vCC).FeedbackType(0).Contains("Time Out") = True Then
-            tmrComponentStim.Enabled = True
-
-            'Restore lever availability after TO (device-specific: "ML" appears to re-enable both levers).
-            Arduino.WriteLine("ML")
-
-            'Resume the programmed component stimulus.
-            If AC(vCC).ComponentStimType.Contains("Light 1") = True Then Arduino.WriteLine("A") 'Resumes component stimulation
-            If AC(vCC).ComponentStimType.Contains("Light 2") = True Then Arduino.WriteLine("B")
-            If AC(vCC).ComponentStimType.Contains("Tone") = True Then Arduino.WriteLine("T")
-            If AC(vCC).ComponentStimType.Contains("Houselight") = True Then Arduino.WriteLine("H")
-
-            'If the houselight is set to be on during the component, enforce that state here as well.
-            If AC(vCC).HouselightOnOff = True Then Arduino.WriteLine("H")
-        End If
-    End Sub
-
-    Private Sub tmrStim2_Tick(sender As Object, e As EventArgs) Handles tmrStim2.Tick
-
-        'Same logic as tmrStim1_Tick, but for Lever 2.
-
-        tmrStim2.Enabled = False
-
-        'Turn off feedback stimuli for Lever 2.
-        If AC(vCC).FeedbackType(1).Contains("Light 1") = True Then Arduino.WriteLine("a")
-        If AC(vCC).FeedbackType(1).Contains("Light 2") = True Then Arduino.WriteLine("b")
-        If AC(vCC).FeedbackType(1).Contains("Tone") = True Then Arduino.WriteLine("t")
-        If AC(vCC).FeedbackType(1).Contains("Houselight") = True Then Arduino.WriteLine("h")
-
-        'If this feedback period implemented a Time Out, resume component stimulation afterwards.
-        If AC(vCC).FeedbackType(1).Contains("Time Out") = True Then
-            tmrComponentStim.Enabled = True
-
-            'Restore lever availability after TO.
-            Arduino.WriteLine("ML")
-
-            'Resume the programmed component stimulus.
-            If AC(vCC).ComponentStimType.Contains("Light 1") = True Then Arduino.WriteLine("A")
-            If AC(vCC).ComponentStimType.Contains("Light 2") = True Then Arduino.WriteLine("B")
-            If AC(vCC).ComponentStimType.Contains("Tone") = True Then Arduino.WriteLine("T")
-            If AC(vCC).ComponentStimType.Contains("Houselight") = True Then Arduino.WriteLine("H")
-
-            'If the houselight is set to be on during the component, enforce that state here as well.
-            If AC(vCC).HouselightOnOff = True Then Arduino.WriteLine("H")
-        End If
+        'Start the post-session timer (e.g., to allow animals to consume the last reinforcer).
+        tmrPostSession.Interval = Math.Max(1, SetUp.txbPostSession.Text * 1000)
+        PostSessionEndTick = Environment.TickCount + tmrPostSession.Interval
+        LastPostSessionSecond = Integer.MinValue
+        tmrPostSession.Enabled = True
     End Sub
 
     Private Sub btnFinish_Click(sender As Object, e As EventArgs) Handles btnFinish.Click
         'This handler is triggered when the user manually ends the session by clicking the Finish button.
-        'It immediately stops all component-related activity, disables manual controls,
-        'and schedules a short post-session period before final cleanup and data saving.
+        Dim result As DialogResult = MessageBox.Show(
+            "Are you sure you want to finish the session?",
+            "Finish session",
+            MessageBoxButtons.YesNo,
+            MessageBoxIcon.Warning)
 
-        lblActiveComponent.Text = "Session End"     'Visually indicate that the session has ended.
-        tmrComponentDuration.Enabled = False        'Stop the component duration timer.
-        tmrComponentStim.Enabled = False            'Stop any component-related stimulation timer.
-
-        'Disable all manual interaction controls to prevent further responses.
-        btnFinish.Enabled = False
-        btnLever1.Enabled = False
-        btnLever2.Enabled = False
-        btnL1IO.Enabled = False
-        btnL2IO.Enabled = False
-        btnReinforce.Enabled = False
-
-        'Start the post-session timer (e.g., to allow animals to consume the last reinforcer).
-        tmrPostSession.Interval = Math.Max(1, SetUp.txbPostSession.Text * 1000)
-        tmrPostSession.Enabled = True
-    End Sub
-
-    Private Sub btnL1IO_Click(sender As Object, e As EventArgs) Handles btnL1IO.Click
-        'Manually toggles the input/output state of Lever 1.
-        'This is typically used for testing or manual intervention during setup.
-
-        If PalIO(0) = True Then
-            PalIO(0) = False
-            Arduino.WriteLine("L")   'Deactivate / retract lever 1.
-        ElseIf PalIO(0) = False Then
-            PalIO(0) = True
-            Arduino.WriteLine("l")   'Activate / extend lever 1.
-        End If
-    End Sub
-
-    Private Sub btnL2IO_Click(sender As Object, e As EventArgs) Handles btnL2IO.Click
-        'Manually toggles the input/output state of Lever 2.
-
-        If PalIO(1) = True Then
-            PalIO(1) = False
-            Arduino.WriteLine("M")   'Deactivate / retract lever 2.
-        ElseIf PalIO(1) = False Then
-            PalIO(1) = True
-            Arduino.WriteLine("m")   'Activate / extend lever 2.
-        End If
-    End Sub
-
-    Private Sub btnLever1_Click(sender As Object, e As EventArgs) Handles btnLever1.Click
-        'Registers a manual response on Lever 1 (useful for testing without Arduino input).
-        Response(0)
-    End Sub
-
-    Private Sub btnLever2_Click(sender As Object, e As EventArgs) Handles btnLever2.Click
-        'Registers a manual response on Lever 2.
-        Response(1)
-    End Sub
-
-    Private Sub btnReinforce_Click(sender As Object, e As EventArgs) Handles btnReinforce.Click
-        'Manually delivers a reinforcer independently of the programmed schedules.
-        'Lever = 3 is used here as a special case to force delivery.
-        Reinforce(3, False)
+        If result <> DialogResult.Yes Then Exit Sub
+        StartPostSession()
     End Sub
 
     Private Sub tmrPostSession_Tick(sender As Object, e As EventArgs) Handles tmrPostSession.Tick
@@ -1116,12 +1432,6 @@ Public Class Main
 
         tmrPostSession.Enabled = False
         Finish()
-    End Sub
-
-    Private Sub tmrNosepoke_Tick(sender As Object, e As EventArgs) Handles tmrNosepoke.Tick
-        'This timer prevents multiple nosepoke registrations from a single sustained poke.
-        'Once elapsed, it allows nosepoke detection again.
-        tmrNosepoke.Enabled = False
     End Sub
 
     Private Sub tmrComponentDuration_Tick(sender As Object, e As EventArgs) Handles tmrComponentDuration.Tick
@@ -1136,79 +1446,73 @@ Public Class Main
         'clears component-related UI elements, and initiates the inter-component interval (ICI).
 
         tmrComponentDuration.Enabled = False         'Stop the component duration timer.
-        RefCount_i(0) = 0                            'Reset within-component reinforcer counters.
-        RefCount_i(1) = 0
+        For inputIndex As Integer = 0 To MAX_INPUTS - 1
+            RefCount_i(inputIndex) = 0
+        Next
 
         'Log the end of the component in the data file.
-        WriteLine(1, vTimeNow, "EndComponent" & vCC)
+        WriteRawEvent("EndComponent" & vCC)
+        AddComponentEndMarker()
 
         'Compute actual component duration by subtracting start time from current time.
         AC(vCC).ComponentDuration_measured(AC(vCC).IterationsLeft) =
-            lblTime.Text - AC(vCC).ComponentDuration_measured(AC(vCC).IterationsLeft)
+            SessionTimeSeconds - AC(vCC).ComponentDuration_measured(AC(vCC).IterationsLeft)
 
-        'Update UI to reflect that the system is now in the ICI.
-        lblActiveComponent.Text = "ICI"
-        lblComponentDuration.Text = SetUp.txbICI.Text
-        lblComponentStim.Text = ""
-        lblIterationsLeft.Text = ""
-        lblL1.Text = ""
-        lblL2.Text = ""
-        lblRfR1.Text = ""
-        lblRfR2.Text = ""
+        'Clear component-specific UI before either entering ICI or advancing immediately.
+        RefreshMainTables("Transition")
 
         'Turn off component stimulation.
-        tmrComponentStim.Enabled = False
+        StopComponentStimulus()
 
-        'Deactivate outputs during ICI; include levers only if ICI duration > 0.
-        If SetUp.txbICI.Text <> 0 Then
-            Arduino.WriteLine("abhtlm")
-        Else
-            Arduino.WriteLine("abht")
-        End If
+        SendArduino("abefht")
 
 
         'If a component ends while a delay is active, invalidate delay annotation
-        DelayOnset(0) = -1 : DelayComp(0) = -1
-        DelayOnset(1) = -1 : DelayComp(1) = -1
+        For inputIndex As Integer = 0 To MAX_INPUTS - 1
+            DelayOnset(inputIndex) = -1
+            DelayComp(inputIndex) = -1
+            DelayTimers(inputIndex).Enabled = False
+            DelaySignalTimers(inputIndex).Enabled = False
+            FeedbackTimers(inputIndex).Enabled = False
+            ScheduleTimers(inputIndex).Enabled = False
+        Next
 
 
-        'Start the inter-component interval timer.
+        tmrCOD.Enabled = False
+        CODL = 0
+
+        If SetUp.ICIDurationSeconds() > 0 Then
+            StartInterComponentInterval()
+        Else
+            AdvanceAfterInterComponentInterval()
+        End If
+    End Sub
+
+    Private Sub StartInterComponentInterval()
+        If SetUp.ICIRetractInputs() Then TurnOffAllInputs()
+        ActivateStimulus(SetUp.ICIStimulusType(), True)
+        RefreshMainTables("ICI")
+
+        tmrICI.Interval = Math.Max(1, SetUp.ICIDurationSeconds() * 1000)
         tmrICI.Enabled = True
     End Sub
 
     Private Sub tmrComponentStim_Tick(sender As Object, e As EventArgs) Handles tmrComponentStim.Tick
-        'This timer controls continuous or intermittent component-level stimulation
-        '(e.g., blinking lights or pulsed tones during a component).
-
-        If AC(vCC).ComponentStimDuration = 0 Then
-            'If the stimulus duration is 0, stimulation is continuous and only needs to be turned on once.
-            tmrComponentStim.Enabled = False
-
-            If AC(vCC).ComponentStimType.Contains("Light 1") = True Then Arduino.WriteLine("A")
-            If AC(vCC).ComponentStimType.Contains("Light 2") = True Then Arduino.WriteLine("B")
-            If AC(vCC).ComponentStimType.Contains("Tone") = True Then Arduino.WriteLine("T")
-            If AC(vCC).ComponentStimType.Contains("Houselight") = True Then Arduino.WriteLine("H")
-        Else
-            'If the stimulus is intermittent, toggle it on and off each tick.
-            If StimInt = False Then
-                StimInt = True
-                If AC(vCC).ComponentStimType.Contains("Light 1") = True Then Arduino.WriteLine("A")
-                If AC(vCC).ComponentStimType.Contains("Light 2") = True Then Arduino.WriteLine("B")
-                If AC(vCC).ComponentStimType.Contains("Tone") = True Then Arduino.WriteLine("T")
-                If AC(vCC).ComponentStimType.Contains("Houselight") = True Then Arduino.WriteLine("H")
-            ElseIf StimInt = True Then
-                StimInt = False
-                If AC(vCC).ComponentStimType.Contains("Light 1") = True Then Arduino.WriteLine("a")
-                If AC(vCC).ComponentStimType.Contains("Light 2") = True Then Arduino.WriteLine("b")
-                If AC(vCC).ComponentStimType.Contains("Tone") = True Then Arduino.WriteLine("t")
-                If AC(vCC).ComponentStimType.Contains("Houselight") = True Then Arduino.WriteLine("h")
-            End If
-        End If
+        ComponentToneStimOn = Not ComponentToneStimOn
+        ActivateStimulus("Tone", ComponentToneStimOn)
     End Sub
 
-    Private Sub tmrICI_Tick(sender As Object, e As EventArgs) Handles tmrICI.Tick
+    Private Sub tmrComponentLightStim_Tick(sender As Object, e As EventArgs) Handles tmrComponentLightStim.Tick
+        ComponentLightStimOn = Not ComponentLightStimOn
+        ActivateStimulus(AC(vCC).ComponentStimType, ComponentLightStimOn, False)
+    End Sub
+
+    Private Sub AdvanceAfterInterComponentInterval()
         'This timer fires at the end of the inter-component interval.
         'It determines whether all components have been exhausted or selects the next component.
+
+        tmrICI.Enabled = False
+        ActivateStimulus(SetUp.ICIStimulusType(), False)
 
         Dim allDepleted As Boolean = True
 
@@ -1221,33 +1525,31 @@ Public Class Main
 
         'If all components are depleted, end the session.
         If ComponentsDepleted = True Then
-            btnFinish.PerformClick()
+            StartPostSession()
         Else
             'Otherwise, select the next component and start it.
-            tmrICI.Enabled = False
-
-            If RandomCPres = False Then
+            If CompSequence Is Nothing Then
                 'Sequential component presentation.
-                If vCC = MAXvCC Then
-                    If AC(1).IterationsLeft > 0 Then
-                        vCC = 1
-                    ElseIf AC(2).IterationsLeft > 0 Then
-                        vCC = 2
-                    ElseIf AC(3).IterationsLeft > 0 Then
-                        vCC = 3
-                    ElseIf AC(4).IterationsLeft > 0 Then
-                        vCC = 4
+                Dim nextComponent As Integer = vCC
+                For offset As Integer = 1 To MAXvCC
+                    Dim candidate As Integer = ((vCC - 1 + offset) Mod MAXvCC) + 1
+                    If AC(candidate).IterationsLeft > 0 Then
+                        nextComponent = candidate
+                        Exit For
                     End If
-                Else
-                    vCC += 1
-                End If
+                Next
+                vCC = CByte(nextComponent)
 
                 BeginPrograms()
-            ElseIf RandomCPres = True Then
-                'Random (restricted) component presentation.
+            Else
+                'Manual or random sequence presentation.
                 BeginPrograms()
             End If
         End If
+    End Sub
+
+    Private Sub tmrICI_Tick(sender As Object, e As EventArgs) Handles tmrICI.Tick
+        AdvanceAfterInterComponentInterval()
     End Sub
 
     Private Sub tmrCOD_Tick(sender As Object, e As EventArgs) Handles tmrCOD.Tick

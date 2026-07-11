@@ -1,0 +1,77 @@
+Dear Mr. Benavides,
+
+Thank you for submitting your manuscript, “Reinforcement Schedules: An Open-Source Visual Interface for Operant Chambers,” to The Psychological Record.
+
+After considering the Associate Editor’s recommendation and the reviewers’ evaluations, I regret to inform you that we are unable to accept the manuscript for publication. The reviewers recognized the potential value of the project, particularly its relevance for expanding access to low-cost and open-source tools for behavior-analytic research and teaching. However, they also identified substantial concerns regarding the manuscript’s fit with the journal, the completeness and reproducibility of the technical implementation, the strength of the validation evidence, and the clarity of the manuscript’s contribution relative to prior related work.
+
+For these reasons, the manuscript cannot be considered further by The Psychological Record in its present form. I encourage you to consider whether a substantially revised version may be better suited for a journal focused more directly on methods, instrumentation, open-source research tools, or experimental technology.
+
+Thank you again for giving us the opportunity to consider your work.
+
+With kind regards,
+
+Yors Garcia, Ph.D.
+Editor-in-Chief
+The Psychological Record
+
+Associate Editor´s Comments
+
+Thank you for submitting your manuscript, “Reinforcement Schedules: An Open-Source Visual Interface for Operant Chambers,” to the special issue on Behavior Analysis in Latin America.
+
+After considering the reviewers’ reports and my own editorial assessment, the decision is: Reject after review
+
+Both reviewers recognized important strengths in the manuscript. They agreed that the project addresses a real need in behavior-analytic research and teaching, particularly in contexts where access to commercial experimental equipment is limited by financial constraints. The development of open-source, low-cost, and customizable tools for operant research is valuable, and the manuscript clearly reflects a meaningful effort to expand experimental infrastructure for students and researchers.
+
+At the same time, the reviewers converged on several substantial concerns that prevent publication in The Psychological Record in its current form.
+
+First, both reviewers raised concerns about the manuscript’s status as a primarily technical software/equipment report. Although this topic is relevant to the broader goals of the special issue, the manuscript would need to establish more clearly its contribution to behavior-analytic research beyond presenting a useful tool.
+
+Second, there are significant concerns about reproducibility and technical completeness. One reviewer attempted to evaluate the software implementation and reported that the Arduino sketches associated with previously cited systems did not appear to be compatible with the Visual Basic program described in the manuscript. This is a central issue. Because the manuscript presents the system as an open-source platform for experimental control, readers must be given a complete, functional, and independently implementable pathway, including the firmware required for the Arduino microcontroller.
+
+Third, the experimental demonstration was judged to be useful but insufficient as evidence of precise experimental control. A stronger validation would be needed to show that the software reliably executes and records events with the temporal precision required for operant research. For example, reviewers suggested that the manuscript should include more fine-grained evidence comparing the cumulative record displayed by the software with records reconstructed from time-stamped event data, or otherwise demonstrate precise moment-to-moment control of inputs, outputs, stimulus changes, and reinforcer deliveries.
+
+Fourth, the manuscript would require substantial reorganization to guide readers through the actual implementation workflow. The relationship among the Set-Up Form, Component Form, configuration files, and demonstration experiment should be clearer. The reviewers also recommended including the fully populated setup used in the demonstration experiment.
+
+Finally, an additional concern emerged during editorial assessment regarding the manuscript’s novelty relative to prior published work. The manuscript appears to have substantial apparent overlap in platform, purpose, and core functionality with a previously published chapter describing an updated Arduino–Visual Basic interface for operant research. This does not establish duplicate publication, nor is it being treated as such. However, in the present manuscript, the independent contribution relative to that prior work is not sufficiently clear. A publishable version would need to specify precisely what is new in the current software, interface, firmware, validation, data structure, and experimental demonstration.
+
+For these reasons, I cannot recommend publication in The Psychological Record at this time. This decision should not be understood as a dismissal of the value of the project. On the contrary, the reviewers and I agree that the tool may be useful for behavior analysts, instructors, and laboratories with limited resources. However, before this work can be considered publishable, it would need to provide a clearer and more technically complete account of implementation, stronger evidence of experimental control, and a more explicit differentiation from previously published work.
+
+I encourage you to consider preparing a substantially revised manuscript for a journal more directly focused on methods, instrumentation, open-source research tools, or experimental technology. Such a venue may be especially appropriate for the technical contribution you are developing.
+
+Thank you again for submitting your work to the special issue.
+
+Best regards,
+Ricardo Pérez-Almonacid, Ph.D.
+Guest Editor
+The Psychological Record
+
+
+Reviewer #1:
+
+I admire the work that is described in this paper, and I believe that an article about it would make a valuable contribution to both research and teaching in the experimental analysis of behavior. The authors (because of blind review I am guessing that there is more than one author) are making available a Visual Basic program designed to control operant experiments with rats in conjunction with an Arduino microcontroller connected to an operant conditioning chamber. The Visual Basic program provides the researcher (or instructor) with a friendly user interface that gives point-and-click access to a wide variety of ways to schedule reinforcers, present discriminative stimuli, and arrange response feedback. The potential value of the program is high.
+
+To realize the program's potential, the researcher needs a clear path to its implementation. The authors suggest that implementation will be straightforward if the researcher uses the Arduino firmware described by Escobar and Perez-Herrera (2015) in concert with the 3D-printed operant chamber described by Escobar et al. (2022). I will set aside further consideration of the operant chamber because any rat chamber could be used. Indeed, this is a strength of the authors' approach. The critical thing is the Arduino firmware, that is, the software within the Arduino microcontroller. Let me explain.
+
+The design of the overall system can be outlined as follows: The Visual Basic program accepts instructions from the researcher regarding the parameters of the experimental session (e.g., schedules, components, stimuli, duration) and saves this information for future use. The microcontroller with its imbedded firmware serves as the interface between the Visual Basic program running on a PC and the operant chamber. Electrical connections between the microcontroller and operant chamber are made so that lever presses send signals to the microcontroller's input ports and the microcontroller, in turn, informs the Visual Basic program about the presses via the USB cable. When the experimental contingencies require that a light be turned on or off, a lever inserted or retracted, or a pellet delivered, the Visual Basic program sends a command to the microcontroller which, in turn, latches or unlatches the microcontroller's output ports connected to these devices. Almost any operant
+chamber for rats will suffice, as long as it is wired to the microcontroller's input and output ports in a way that is compatible with the Visual Basic program. As noted by the authors in the last sentence of the "Prerequisites" section, compatibility is achieved by a combination of the electrical wiring (which devices are connected to which input/output ports) and firmware (e.g., how the microcontroller's imbedded software translates commands from the Visual Basic program to latch or unlatch output ports and thereby control devices in the chamber).
+
+I downloaded the Visual Basic program and hoped to test it using an Arduino that was connected to buttons and LEDs as proxies for levers and a chamber's output devices. I tried one of the Arduino sketches described by Escobar and Perez-Herrera (2015) but that didn't work. I also downloaded the sketch described by Escobar et al. (2022). I compared the code in the two sketches; they are not compatible with one another and neither is capable of fulfilling the requirements of the Visual Basic program described in this article. This is disappointing. The authors need to provide access to an Arduino sketch that fully supports the Visual Basic program. The end user, the researcher, could then modify the sketch so that the input and output assignments in the sketch matched the connections in the researcher's laboratory. This would really let the Visual Basic program be put to good use.
+
+Additional Comments
+
+I had trouble understanding how to use program based on the description in the section labeled "The Set-Up Form." I think the problem is that Figure 1 gets the reader off on the wrong foot. When I ran the program myself, I came to understand how the form works: It starts with just the part labeled "A" in the figure. The part labeled "B" appears only in stages as the researcher defines the parameters for each component of the session.
+
+I also had difficulty understanding Figure 2, which shows a configuration file. I may misunderstand something important, but I could not see how the file lines up with the component parameters in Figure 1.
+
+The section on "The Component Form" seems out of place to me. This form is used to add to the Set-Up form and establish the session parameters that are saved in the configuration file, and therefore it is presented out of sequence. The researcher must use this form at almost the very beginning of the process, and I think it should be described earlier.
+
+The section about the "Demonstration Experiment" would be more helpful if it included a figure showing the fully populated Set-Up form that was used to establish the experimental parameters.
+
+Reviewer #2
+
+The manuscript title "Reinforcement Schedules: An Open-Source Visual Interface for Operant Chambers" is a technical paper in which the functioning of a visual interface for controlling operant chambers is presented. The idea behind the manuscript is to provide lower cost tools for both teaching and research purposes, and as such may be relevant to an empirically-oriented audience. Also, an open-source, customizable tool with a steep learning curve is indeed useful for attracting a larger number of people that otherwise would be deterred from venturing into research. However, a technical paper strays away from the publishing policies of The Psychological Record and may therefore be more suitable for another journal.
+
+As for the technical part, I believe the tool was fairly well described and does seem versatile enough to conduct plenty of experiments with simpler arrangements. However, because I do not have access to the equipment necessary to run an experiment with this software, nor did I have the time to build one myself, I cannot assure the outputs and inputs were timed precisely during the sessions and recorded on the data files correctly. While the experimental demonstration was illustrative, I would be more confident in the merits of the software if more precise experimental control were shown. For instance, in a conditioned suppression paradigm, the onset of the stimulus is followed by the suppression of responding almost immediately. Also, when a reinforcer is delivered, head entries into the tray are much more likely. A figure comparing the cumulative record displayed on the main form (as the one in Figure 5) and the same cumulative record reconstructed from the time-stamped
+event record presented side by side would show how the occurrence of responses is precisely controlled by the onset of the stimulus. Moreover, if the objective of the publication is to reassure the audience that the data obtained with the software is as reliable as other software and equipment, then more fine-grained, moment-to-moment variations would be more convincing. If the objective is to showcase the versatility of the software, then screenshots of the setup forms for many different, commonly used protocols would be more useful.
+
+In conclusion, while I believe the work described in the paper is valuable and relevant to behavior analysts and neuroscientists, especially in countries where the access to proper equipment and software is limited by finances, I am not sure whether The Psychological Record is the right venue to disseminate the information.
