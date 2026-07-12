@@ -7,8 +7,10 @@ Public Class Main
     Private SimulationMode As Boolean = False
     Private WithEvents tmrChrt As Timer = New Timer
     Private WithEvents tmrComponentLightStim As Timer = New Timer
+    Private WithEvents tmrTimeSchedule As Timer = New Timer
     Private CompSequence As List(Of Integer)
     Private CompIndexSeq As Integer
+    Private TimeScheduleList As New List(Of Integer)
     Private ObtainedDelayDurations(,) As List(Of Integer)
     Private DelayOnset(MAX_INPUTS - 1) As Integer
     Private DelayComp(MAX_INPUTS - 1) As Integer
@@ -16,6 +18,11 @@ Public Class Main
     Private DelayTimers(MAX_INPUTS - 1) As Timer
     Private DelaySignalTimers(MAX_INPUTS - 1) As Timer
     Private FeedbackTimers(MAX_INPUTS - 1) As Timer
+    Private TPeriodTimers(MAX_INPUTS - 1) As Timer
+    Private TInterPeriodTimers(MAX_INPUTS - 1) As Timer
+    Private TCurrentPeriodIsD(MAX_INPUTS - 1) As Boolean
+    Private TPeriodsRemaining(MAX_INPUTS - 1) As Integer
+    Private TInInterPeriod(MAX_INPUTS - 1) As Boolean
     Private ComponentLightStimOn As Boolean
     Private ComponentToneStimOn As Boolean
     Private ChartSeriesConfigured As Boolean = False
@@ -62,6 +69,16 @@ Public Class Main
                 FeedbackTimers(inputIndex).Interval = 1000
                 AddHandler FeedbackTimers(inputIndex).Tick, AddressOf FeedbackTimer_Tick
             End If
+
+            If TPeriodTimers(inputIndex) Is Nothing Then
+                TPeriodTimers(inputIndex) = New Timer()
+                AddHandler TPeriodTimers(inputIndex).Tick, AddressOf TPeriodTimer_Tick
+            End If
+
+            If TInterPeriodTimers(inputIndex) Is Nothing Then
+                TInterPeriodTimers(inputIndex) = New Timer()
+                AddHandler TInterPeriodTimers(inputIndex).Tick, AddressOf TInterPeriodTimer_Tick
+            End If
         Next
 
         ConfigureMainLayout()
@@ -96,12 +113,12 @@ Public Class Main
 
     Private Sub SimResponseButton_Click(sender As Object, e As EventArgs)
         Dim inputIndex As Integer = CInt(DirectCast(sender, Button).Tag)
-        If inputIndex < ActiveInputCount() Then Response(inputIndex)
+        If IsInputAvailable(inputIndex) Then Response(inputIndex)
     End Sub
 
     Private Sub InputOutputButton_Click(sender As Object, e As EventArgs)
         Dim inputIndex As Integer = CInt(DirectCast(sender, Button).Tag)
-        If inputIndex >= ActiveInputCount() Then Exit Sub
+        If IsInputAvailable(inputIndex) = False Then Exit Sub
 
         PalIO(inputIndex) = Not PalIO(inputIndex)
         SetInputOutput(inputIndex, PalIO(inputIndex))
@@ -110,7 +127,7 @@ Public Class Main
 
     Private Sub InputReinforcerButton_Click(sender As Object, e As EventArgs)
         Dim inputIndex As Integer = CInt(DirectCast(sender, Button).Tag)
-        If inputIndex < ActiveInputCount() Then Reinforce(inputIndex, True)
+        If IsInputAvailable(inputIndex) Then Reinforce(inputIndex, True)
     End Sub
 
     Private Sub SetSimulationButton(inputIndex As Integer, enabled As Boolean)
@@ -377,7 +394,13 @@ Public Class Main
     End Function
 
     Private Function ScheduleText(inputIndex As Integer) As String
+        If AC(vCC).ScheduleType(inputIndex) = "N/A" Then Return "N/A"
         If AC(vCC).ScheduleType(inputIndex) = "Extinction" Then Return "Extinction"
+        If AC(vCC).ScheduleType(inputIndex) = "T Schedule" Then
+            Return "T Schedule TD " & AC(vCC).TDurationD(inputIndex) & " s / TΔ " &
+                AC(vCC).TDurationDelta(inputIndex) & " s / P " &
+                AC(vCC).TProbabilityD(inputIndex) & "%|" & AC(vCC).TProbabilityDelta(inputIndex) & "%"
+        End If
         Return AC(vCC).ScheduleType(inputIndex) & " " & AC(vCC).ScheduleValue(inputIndex)
     End Function
 
@@ -396,8 +419,20 @@ Public Class Main
         Return scheduleType = "fixed interval" OrElse scheduleType.Contains("variable interval")
     End Function
 
+    Private Function IsTSchedule(inputIndex As Integer) As Boolean
+        Return NormalizedScheduleType(inputIndex) = "t schedule"
+    End Function
+
     Private Function IsExtinctionSchedule(inputIndex As Integer) As Boolean
         Return NormalizedScheduleType(inputIndex) = "extinction"
+    End Function
+
+    Private Function IsUnavailableSchedule(inputIndex As Integer) As Boolean
+        Return NormalizedScheduleType(inputIndex) = "n/a"
+    End Function
+
+    Private Function IsInputAvailable(inputIndex As Integer) As Boolean
+        Return inputIndex < ActiveInputCount() AndAlso IsUnavailableSchedule(inputIndex) = False
     End Function
 
     Private Sub WriteRawEvent(eventCode As String)
@@ -417,6 +452,20 @@ Public Class Main
         Next
 
         Return False
+    End Function
+
+    Private Function ProbabilityHit(probability As Integer) As Boolean
+        If probability <= 0 Then Return False
+        If probability >= 100 Then Return True
+        Return SessionRandom.Next(1, 101) <= probability
+    End Function
+
+    Private Function ComponentRefTotal() As Integer
+        Dim componentRefs As Integer = TimeRefCount_i
+        For inputIndex As Integer = 0 To ActiveInputCount() - 1
+            componentRefs += RefCount_i(inputIndex)
+        Next
+        Return componentRefs
     End Function
 
     Private Function ComponentStimText() As String
@@ -457,12 +506,23 @@ Public Class Main
             dgvMainInputs.Rows.Add(
                 InputLabel(inputIndex),
                 ScheduleText(inputIndex),
-                If(IsRatioSchedule(inputIndex), "N/A", CStr(refRdy(inputIndex))),
+                ScheduleStatusText(inputIndex),
                 CStr(ResponseCount(vCC, inputIndex)),
                 CStr(ResponseCountDel(vCC, inputIndex)),
                 CStr(RefCount(vCC, inputIndex)))
         Next
     End Sub
+
+    Private Function ScheduleStatusText(inputIndex As Integer) As String
+        If IsRatioSchedule(inputIndex) Then Return "N/A"
+        If IsTSchedule(inputIndex) Then
+            If TInInterPeriod(inputIndex) Then Return "Between periods"
+            If TPeriodTimers(inputIndex) IsNot Nothing AndAlso TPeriodTimers(inputIndex).Enabled Then Return If(TCurrentPeriodIsD(inputIndex), "TD", "TΔ")
+            Return "Off"
+        End If
+
+        Return CStr(refRdy(inputIndex))
+    End Function
 
     Private Sub RefreshMainTables(Optional statusText As String = "")
         RefreshMainSessionTable(statusText)
@@ -473,7 +533,7 @@ Public Class Main
 
     Private Sub RefreshChartLegend()
         For inputIndex As Integer = 0 To MAX_INPUTS - 1
-            Dim active As Boolean = inputIndex < ActiveInputCount()
+            Dim active As Boolean = IsInputAvailable(inputIndex)
             If Chart1.Series.IndexOf(ResponseSeriesName(inputIndex)) >= 0 Then
                 Chart1.Series(ResponseSeriesName(inputIndex)).LegendText = If(active, InputLabel(inputIndex) & " responses", "")
                 Chart1.Series(ResponseSeriesName(inputIndex)).IsVisibleInLegend = active
@@ -574,7 +634,7 @@ Public Class Main
     End Sub
 
     Private Sub RestoreRetractedInput(inputIndex As Integer)
-        If AC(vCC).DelayRetract(inputIndex) Then SetInputOutput(inputIndex, True)
+        If AC(vCC).DelayRetract(inputIndex) AndAlso IsInputAvailable(inputIndex) Then SetInputOutput(inputIndex, True)
     End Sub
 
     Private Sub StartComponentStimulus()
@@ -648,7 +708,7 @@ Public Class Main
 
                 For inputIndex As Integer = 0 To MAX_INPUTS - 1
                     If Actual_Response(inputIndex) <> Previous_Response(inputIndex) AndAlso Actual_Response(inputIndex) <> "1" Then
-                        If inputIndex < ActiveInputCount() Then
+                        If IsInputAvailable(inputIndex) Then
                             Response(inputIndex)
                         End If
                     End If
@@ -804,6 +864,7 @@ Public Class Main
         ' Reset timers and outputs
         ' =========================================================
         tmrCOD.Enabled = False
+        tmrTimeSchedule.Enabled = False
         CODL = 0
         SendArduino("abeft")
         TurnOffAllInputs()
@@ -816,6 +877,10 @@ Public Class Main
             DelayTimers(inputIndex).Enabled = False
             FeedbackTimers(inputIndex).Enabled = False
             DelaySignalTimers(inputIndex).Enabled = False
+            TPeriodTimers(inputIndex).Enabled = False
+            TInterPeriodTimers(inputIndex).Enabled = False
+            TInInterPeriod(inputIndex) = False
+            TPeriodsRemaining(inputIndex) = 0
         Next
 
         ' Reset current delay onset markers for the new component
@@ -836,6 +901,7 @@ Public Class Main
         For inputIndex As Integer = 0 To MAX_INPUTS - 1
             VIList(inputIndex) = New List(Of Integer)
         Next
+        TimeScheduleList = New List(Of Integer)
 
         ' -----------------------------
         ' IMPORTANT CHANGE:
@@ -853,12 +919,12 @@ Public Class Main
             If AC(vCC).DelaySignalDuration(inputIndex) > 0 Then DelaySignalTimers(inputIndex).Interval = Math.Max(1, CInt(AC(vCC).DelaySignalDuration(inputIndex) * 1000))
             If AC(vCC).FeedbackDuration(inputIndex) > 0 Then FeedbackTimers(inputIndex).Interval = Math.Max(1, CInt(AC(vCC).FeedbackDuration(inputIndex) * 1000))
 
-            If IsExtinctionSchedule(inputIndex) = False AndAlso AC(vCC).Reinforcer(inputIndex) <> "N/A" AndAlso AC(vCC).Magnitude(inputIndex) <= 0 Then
+            If IsExtinctionSchedule(inputIndex) = False AndAlso IsUnavailableSchedule(inputIndex) = False AndAlso AC(vCC).Reinforcer(inputIndex) <> "N/A" AndAlso AC(vCC).Magnitude(inputIndex) <= 0 Then
                 AC(vCC).Magnitude(inputIndex) = 1
             End If
 
-            SetInputOutput(inputIndex, NormalizedScheduleType(inputIndex) <> "" AndAlso IsExtinctionSchedule(inputIndex) = False)
-            PalIO(inputIndex) = NormalizedScheduleType(inputIndex) <> "" AndAlso IsExtinctionSchedule(inputIndex) = False
+            SetInputOutput(inputIndex, NormalizedScheduleType(inputIndex) <> "" AndAlso IsExtinctionSchedule(inputIndex) = False AndAlso IsUnavailableSchedule(inputIndex) = False)
+            PalIO(inputIndex) = NormalizedScheduleType(inputIndex) <> "" AndAlso IsExtinctionSchedule(inputIndex) = False AndAlso IsUnavailableSchedule(inputIndex) = False
         Next
 
         ' =========================================================
@@ -869,18 +935,21 @@ Public Class Main
             RatioCount(inputIndex) = 0
             refRdy(inputIndex) = False
         Next
+        TimeRefCount_i = 0
         ' =========================================================
         ' Initialize schedules
         ' =========================================================
         For inputIndex As Integer = 0 To ActiveInputCount() - 1
             InitializeSchedule(inputIndex)
+            If IsTSchedule(inputIndex) Then InitializeTSchedule(inputIndex)
         Next
+        InitializeTimeSchedule()
 
         ' =========================================================
         ' Update schedule logging
         ' =========================================================
         For inputIndex As Integer = 0 To ActiveInputCount() - 1
-            SetSimulationButton(inputIndex, True)
+            SetSimulationButton(inputIndex, IsInputAvailable(inputIndex))
 
             Dim scheduleLogText As String = InputLabel(inputIndex) & " Schedule: " & ScheduleText(inputIndex)
             WriteLine(2, scheduleLogText)
@@ -902,7 +971,7 @@ Public Class Main
         ' Registers a response and evaluates whether a reinforcer is available
         ' for ratio- or interval-based schedules.
 
-        If SessionStarted AndAlso SessionEnding = False AndAlso tmrStart.Enabled = False Then
+        If SessionStarted AndAlso SessionEnding = False AndAlso tmrStart.Enabled = False AndAlso IsInputAvailable(Lever) Then
 
             ' Increment real-time response counter for plotting
             chartResponse(Lever) += 1
@@ -948,6 +1017,8 @@ Public Class Main
                             Ratio(Lever)
                         ElseIf IsIntervalSchedule(Lever) AndAlso refRdy(Lever) = True Then
                             Reinforce(Lever, False)
+                        ElseIf IsTSchedule(Lever) Then
+                            TScheduleResponse(Lever)
                         End If
 
                         ' ---------------------------------------------------------
@@ -1030,56 +1101,53 @@ Public Class Main
         Else
             refRdy(Lever) = False
 
-            RefCount(vCC, Lever) += 1
-            RefCount_i(Lever) += 1
-
+            Dim deliveredCount As Integer = 0
             For i = 1 To AC(vCC).Magnitude(Lever)
-                Dim seriesName As String = ReinforcerSeriesName(Lever)
-                If Chart1.Series.IndexOf(seriesName) >= 0 Then Chart1.Series(seriesName).Points.AddXY(chartTime(Lever), chartResponse(Lever))
-                ReinforcerDelivery(Lever)
+                If ReinforcerDelivery(AC(vCC).Reinforcer(Lever), If(AC(vCC).DeliveryP Is Nothing, 100, AC(vCC).DeliveryP(Lever)), AC(vCC).PelletP(Lever)) Then
+                    deliveredCount += 1
+                    Dim seriesName As String = ReinforcerSeriesName(Lever)
+                    If Chart1.Series.IndexOf(seriesName) >= 0 Then Chart1.Series(seriesName).Points.AddXY(chartTime(Lever), chartResponse(Lever))
+                End If
             Next
+            RefCount(vCC, Lever) += deliveredCount
+            RefCount_i(Lever) += deliveredCount
             RefreshInputStatusTable()
 
-            If AC(vCC).Magnitude(Lever) > 0 Then WriteRawEvent("R" & (Lever + 1))
+            If deliveredCount > 0 Then WriteRawEvent("R" & (Lever + 1))
 
             InitializeSchedule(Lever)
         End If
 
         ' Check component termination based on maximum reinforcers
-        Dim componentRefs As Integer = 0
-        For inputIndex As Integer = 0 To ActiveInputCount() - 1
-            componentRefs += RefCount_i(inputIndex)
-        Next
-
-        If componentRefs >= AC(vCC).MaxRefs AndAlso AC(vCC).MaxRefs > 0 Then
+        If ComponentRefTotal() >= AC(vCC).MaxRefs AndAlso AC(vCC).MaxRefs > 0 Then
             ComponentDuration_Code()
         End If
 
     End Sub
 
 
-    Private Sub ReinforcerDelivery(Lever)
+    Private Function ReinforcerDelivery(reinforcerType As String, deliveryProbability As Integer, pelletProbability As Integer) As Boolean
+        If ProbabilityHit(deliveryProbability) = False Then Return False
 
-        ' Sends the appropriate command to the hardware to deliver
-        ' the programmed reinforcer type.
-
-        If AC(vCC).Reinforcer(Lever) = "Pellet" Then
+        If reinforcerType = "Pellet" Then
             SendArduino("R")
+            Return True
 
-        ElseIf AC(vCC).Reinforcer(Lever) = "Liquid" Then
+        ElseIf reinforcerType = "Liquid" Then
             SendArduino("W")
+            Return True
 
-        ElseIf AC(vCC).Reinforcer(Lever) = "Random" Then
-            Dim Crit As New Double
-            Crit = SessionRandom.Next(1, 101)
-
-            If Crit <= AC(vCC).PelletP(Lever) Then
+        ElseIf reinforcerType = "Random" Then
+            If ProbabilityHit(pelletProbability) Then
                 SendArduino("R")
             Else
                 SendArduino("W")
             End If
+            Return True
         End If
-    End Sub
+
+        Return False
+    End Function
 
     Private Sub FRGen(x) 'This initializes Fixed Ratio schedules depending on the selected values / operanda.
         'FR schedules just check current responses against the specified schedule value.
@@ -1126,6 +1194,164 @@ Public Class Main
         ScheduleTimers(list).Interval = Math.Max(1, (VIList(list).Item(p) + 1) * 1000)
         ScheduleTimers(list).Enabled = True
         VIList(list).RemoveAt(p)
+    End Sub
+
+    Private Function TStimulus(inputIndex As Integer) As String
+        If TCurrentPeriodIsD(inputIndex) Then
+            Return If(AC(vCC).TStimD Is Nothing, "None", AC(vCC).TStimD(inputIndex))
+        End If
+
+        Return If(AC(vCC).TStimDelta Is Nothing, "None", AC(vCC).TStimDelta(inputIndex))
+    End Function
+
+    Private Function TPeriodDuration(inputIndex As Integer) As Double
+        If TCurrentPeriodIsD(inputIndex) Then
+            Return If(AC(vCC).TDurationD Is Nothing, 0, AC(vCC).TDurationD(inputIndex))
+        End If
+
+        Return If(AC(vCC).TDurationDelta Is Nothing, 0, AC(vCC).TDurationDelta(inputIndex))
+    End Function
+
+    Private Sub InitializeTSchedule(inputIndex As Integer)
+        If AC(vCC).TCycles Is Nothing OrElse AC(vCC).TCycles(inputIndex) <= 0 Then Exit Sub
+        If AC(vCC).TDurationD(inputIndex) <= 0 OrElse AC(vCC).TDurationDelta(inputIndex) <= 0 Then Exit Sub
+
+        TPeriodsRemaining(inputIndex) = AC(vCC).TCycles(inputIndex) * 2
+        TCurrentPeriodIsD(inputIndex) = If(AC(vCC).TStartPeriod Is Nothing, True, AC(vCC).TStartPeriod(inputIndex) <> "TDelta")
+        StartTPeriod(inputIndex)
+    End Sub
+
+    Private Sub StartTPeriod(inputIndex As Integer)
+        If TPeriodsRemaining(inputIndex) <= 0 OrElse SessionStarted = False OrElse SessionEnding Then Exit Sub
+
+        TInInterPeriod(inputIndex) = False
+        ActivateStimulus(TStimulus(inputIndex), True)
+        TPeriodTimers(inputIndex).Interval = Math.Max(1, CInt(TPeriodDuration(inputIndex) * 1000))
+        TPeriodTimers(inputIndex).Enabled = True
+        TPeriodsRemaining(inputIndex) -= 1
+        RefreshInputStatusTable()
+    End Sub
+
+    Private Sub StopTPeriod(inputIndex As Integer)
+        TPeriodTimers(inputIndex).Enabled = False
+        ActivateStimulus(TStimulus(inputIndex), False)
+    End Sub
+
+    Private Sub AdvanceTPeriod(inputIndex As Integer)
+        If TPeriodsRemaining(inputIndex) <= 0 Then
+            TInInterPeriod(inputIndex) = False
+            RefreshInputStatusTable()
+            Exit Sub
+        End If
+
+        TCurrentPeriodIsD(inputIndex) = Not TCurrentPeriodIsD(inputIndex)
+        StartTPeriod(inputIndex)
+    End Sub
+
+    Private Sub TPeriodTimer_Tick(sender As Object, e As EventArgs)
+        Dim inputIndex As Integer = InputTimerIndex(TPeriodTimers, sender)
+        If inputIndex < 0 Then Exit Sub
+
+        StopTPeriod(inputIndex)
+        If AC(vCC).TInterPeriod IsNot Nothing AndAlso AC(vCC).TInterPeriod(inputIndex) > 0 AndAlso TPeriodsRemaining(inputIndex) > 0 Then
+            TInInterPeriod(inputIndex) = True
+            TInterPeriodTimers(inputIndex).Interval = Math.Max(1, CInt(AC(vCC).TInterPeriod(inputIndex) * 1000))
+            TInterPeriodTimers(inputIndex).Enabled = True
+            RefreshInputStatusTable()
+        Else
+            AdvanceTPeriod(inputIndex)
+        End If
+    End Sub
+
+    Private Sub TInterPeriodTimer_Tick(sender As Object, e As EventArgs)
+        Dim inputIndex As Integer = InputTimerIndex(TInterPeriodTimers, sender)
+        If inputIndex < 0 Then Exit Sub
+
+        TInterPeriodTimers(inputIndex).Enabled = False
+        TInInterPeriod(inputIndex) = False
+        AdvanceTPeriod(inputIndex)
+    End Sub
+
+    Private Sub TScheduleResponse(inputIndex As Integer)
+        If TInInterPeriod(inputIndex) Then Exit Sub
+        If TPeriodTimers(inputIndex).Enabled = False Then Exit Sub
+
+        Dim probability As Integer = If(TCurrentPeriodIsD(inputIndex), AC(vCC).TProbabilityD(inputIndex), AC(vCC).TProbabilityDelta(inputIndex))
+        If ProbabilityHit(probability) Then Reinforce(inputIndex, False)
+    End Sub
+
+    Private Function NormalizedTimeScheduleType() As String
+        Return If(AC(vCC).TimeScheduleType, "").Trim().ToLowerInvariant()
+    End Function
+
+    Private Sub InitializeTimeSchedule()
+        tmrTimeSchedule.Enabled = False
+        Dim scheduleType As String = NormalizedTimeScheduleType()
+        If scheduleType <> "fixed time" AndAlso scheduleType <> "variable time" Then Exit Sub
+        If AC(vCC).TimeScheduleValue <= 0 Then Exit Sub
+        ScheduleNextTimeReinforcer()
+    End Sub
+
+    Private Sub ScheduleNextTimeReinforcer()
+        Dim scheduleType As String = NormalizedTimeScheduleType()
+        Dim intervalSeconds As Double = AC(vCC).TimeScheduleValue
+
+        If scheduleType = "variable time" Then
+            If TimeScheduleList.Count = 0 Then
+                Dim v As Double = AC(vCC).TimeScheduleValue
+                Dim n As Integer = 10
+                Dim rd(n) As Integer
+                Dim vi(n) As Integer
+                For m As Integer = 1 To n
+                    If m = n Then
+                        vi(m) = CInt(Math.Max(1, v * (1 + Log(n))))
+                    Else
+                        vi(m) = CInt(Math.Max(1, v * (1 + (Log(n)) + (n - m) * (Log(n - m)) - (n - m + 1) * Log(n - m + 1))))
+                    End If
+RetryOrder:
+                    Dim order As Integer = SessionRandom.Next(1, n + 1)
+                    If rd(order) = 0 Then
+                        rd(order) = vi(m)
+                    Else
+                        GoTo RetryOrder
+                    End If
+                Next
+                For i As Integer = 1 To n
+                    TimeScheduleList.Add(rd(i))
+                Next
+            End If
+
+            Dim p As Integer = SessionRandom.Next(TimeScheduleList.Count)
+            intervalSeconds = TimeScheduleList(p)
+            TimeScheduleList.RemoveAt(p)
+        End If
+
+        tmrTimeSchedule.Interval = Math.Max(1, CInt(intervalSeconds * 1000))
+        tmrTimeSchedule.Enabled = True
+    End Sub
+
+    Private Sub tmrTimeSchedule_Tick(sender As Object, e As EventArgs) Handles tmrTimeSchedule.Tick
+        tmrTimeSchedule.Enabled = False
+        If SessionStarted = False OrElse SessionEnding Then Exit Sub
+        If NormalizedTimeScheduleType() <> "fixed time" AndAlso NormalizedTimeScheduleType() <> "variable time" Then Exit Sub
+
+        Dim deliveredCount As Integer = 0
+        For i As Integer = 1 To Math.Max(1, AC(vCC).TimeMagnitude)
+            If ReinforcerDelivery(AC(vCC).TimeReinforcer, AC(vCC).TimeDeliveryP, AC(vCC).TimePelletP) Then deliveredCount += 1
+        Next
+
+        If deliveredCount > 0 Then
+            TimeRefCount(vCC) += deliveredCount
+            TimeRefCount_i += deliveredCount
+            WriteRawEvent("RT")
+            RefreshInputStatusTable()
+        End If
+
+        If ComponentRefTotal() >= AC(vCC).MaxRefs AndAlso AC(vCC).MaxRefs > 0 Then
+            ComponentDuration_Code()
+        Else
+            ScheduleNextTimeReinforcer()
+        End If
     End Sub
 
     Private Sub InitializeSchedule(inputIndex As Integer)
@@ -1220,6 +1446,9 @@ Public Class Main
                     For inputIndex As Integer = 0 To ActiveInputCount(s) - 1
                         WriteLine(i, InputLabel(inputIndex, s) & " Component " & s & ": " & RefCount(s, inputIndex))
                     Next
+                    If AC(s).TimeScheduleType <> "" AndAlso AC(s).TimeScheduleType <> "None" Then
+                        WriteLine(i, "Time schedule Component " & s & ": " & TimeRefCount(s))
+                    End If
                 End If
             Next
 
@@ -1232,6 +1461,9 @@ Public Class Main
                     For inputIndex As Integer = 0 To ActiveInputCount(s) - 1
                         WriteLine(i, InputLabel(inputIndex, s) & " Component " & s & ": " & (RefCount(s, inputIndex) / (AC(s).ComponentDuration / 60)))
                     Next
+                    If AC(s).TimeScheduleType <> "" AndAlso AC(s).TimeScheduleType <> "None" Then
+                        WriteLine(i, "Time schedule Component " & s & ": " & (TimeRefCount(s) / (AC(s).ComponentDuration / 60)))
+                    End If
                 End If
             Next
 
@@ -1280,8 +1512,13 @@ Public Class Main
         tmrComponentDuration.Enabled = False
         tmrComponentStim.Enabled = False
         tmrComponentLightStim.Enabled = False
+        tmrTimeSchedule.Enabled = False
         tmrICI.Enabled = False
         tmrCOD.Enabled = False
+        For inputIndex As Integer = 0 To MAX_INPUTS - 1
+            If TPeriodTimers(inputIndex) IsNot Nothing Then TPeriodTimers(inputIndex).Enabled = False
+            If TInterPeriodTimers(inputIndex) IsNot Nothing Then TInterPeriodTimers(inputIndex).Enabled = False
+        Next
         If Arduino IsNot Nothing AndAlso Arduino.IsOpen Then Arduino.Close()
     End Sub
 
@@ -1378,7 +1615,7 @@ Public Class Main
 
         If AC(vCC).FeedbackType(inputIndex).Contains("Time Out") = True Then
             For activeInput As Integer = 0 To ActiveInputCount() - 1
-                SetInputOutput(activeInput, AC(vCC).ScheduleType(activeInput) <> "" AndAlso AC(vCC).ScheduleType(activeInput).ToLower() <> "extinction")
+                SetInputOutput(activeInput, IsInputAvailable(activeInput) AndAlso IsExtinctionSchedule(activeInput) = False)
             Next
             StartComponentStimulus()
             If AC(vCC).HouselightOnOff = True Then SendArduino("H")
@@ -1393,7 +1630,14 @@ Public Class Main
         tmrComponentDuration.Enabled = False        'Stop the component duration timer.
         tmrComponentStim.Enabled = False            'Stop any component-related stimulation timer.
         tmrComponentLightStim.Enabled = False
+        tmrTimeSchedule.Enabled = False
         tmrChrt.Enabled = False
+        For inputIndex As Integer = 0 To MAX_INPUTS - 1
+            If TPeriodTimers(inputIndex) IsNot Nothing Then TPeriodTimers(inputIndex).Enabled = False
+            If TInterPeriodTimers(inputIndex) IsNot Nothing Then TInterPeriodTimers(inputIndex).Enabled = False
+            ActivateStimulus(If(AC(vCC).TStimD Is Nothing, "None", AC(vCC).TStimD(inputIndex)), False)
+            ActivateStimulus(If(AC(vCC).TStimDelta Is Nothing, "None", AC(vCC).TStimDelta(inputIndex)), False)
+        Next
 
         RefreshMainSessionTable("Post-session")
         RefreshInputStatusTable()
@@ -1446,6 +1690,7 @@ Public Class Main
         'clears component-related UI elements, and initiates the inter-component interval (ICI).
 
         tmrComponentDuration.Enabled = False         'Stop the component duration timer.
+        tmrTimeSchedule.Enabled = False
         For inputIndex As Integer = 0 To MAX_INPUTS - 1
             RefCount_i(inputIndex) = 0
         Next
@@ -1475,6 +1720,10 @@ Public Class Main
             DelaySignalTimers(inputIndex).Enabled = False
             FeedbackTimers(inputIndex).Enabled = False
             ScheduleTimers(inputIndex).Enabled = False
+            TPeriodTimers(inputIndex).Enabled = False
+            TInterPeriodTimers(inputIndex).Enabled = False
+            ActivateStimulus(If(AC(vCC).TStimD Is Nothing, "None", AC(vCC).TStimD(inputIndex)), False)
+            ActivateStimulus(If(AC(vCC).TStimDelta Is Nothing, "None", AC(vCC).TStimDelta(inputIndex)), False)
         Next
 
 

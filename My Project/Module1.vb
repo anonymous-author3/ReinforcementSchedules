@@ -7,6 +7,7 @@
     Public chartFlag(1) As Boolean
     Public ICIcounter As Integer
     Public vFile(3) As String
+    Public SessionUID As String = ""
     Public rep(10) As Integer
     Public Lever1 As String = ""
     Public Lever2 As String = ""
@@ -19,6 +20,8 @@
     Public Previous_Response(MAX_INPUTS - 1) As String
     Public RefCount(MAX_COMPONENTS, MAX_INPUTS - 1) As Integer
     Public RefCount_i(MAX_INPUTS - 1) As Integer
+    Public TimeRefCount(MAX_COMPONENTS) As Integer
+    Public TimeRefCount_i As Integer
     Public refRdy(MAX_INPUTS - 1) As Boolean
     Public VIList(MAX_INPUTS - 1) As List(Of Integer)
     Public ObtainedDelays(MAX_INPUTS - 1) As List(Of Integer)
@@ -55,7 +58,23 @@
         Dim ScheduleValue() As Integer
         Dim Magnitude() As Integer
         Dim Reinforcer() As String
+        Dim DeliveryP() As Integer
         Dim PelletP() As Integer
+        Dim TDurationD() As Double
+        Dim TDurationDelta() As Double
+        Dim TProbabilityD() As Integer
+        Dim TProbabilityDelta() As Integer
+        Dim TCycles() As Integer
+        Dim TStartPeriod() As String
+        Dim TInterPeriod() As Double
+        Dim TStimD() As String
+        Dim TStimDelta() As String
+        Dim TimeScheduleType As String
+        Dim TimeScheduleValue As Double
+        Dim TimeReinforcer As String
+        Dim TimeMagnitude As Integer
+        Dim TimeDeliveryP As Integer
+        Dim TimePelletP As Integer
         Dim FeedbackDuration() As Double
         Dim FeedbackType() As String
         Dim DelayDuration() As Double
