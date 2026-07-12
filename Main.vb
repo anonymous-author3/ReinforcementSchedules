@@ -17,6 +17,7 @@ Public Class Main
     Private ScheduleTimers(MAX_INPUTS - 1) As Timer
     Private DelayTimers(MAX_INPUTS - 1) As Timer
     Private DelaySignalTimers(MAX_INPUTS - 1) As Timer
+    Private DelaySignalStartTimers(MAX_INPUTS - 1) As Timer
     Private FeedbackTimers(MAX_INPUTS - 1) As Timer
     Private TPeriodTimers(MAX_INPUTS - 1) As Timer
     Private TInterPeriodTimers(MAX_INPUTS - 1) As Timer
@@ -62,6 +63,11 @@ Public Class Main
             If DelaySignalTimers(inputIndex) Is Nothing Then
                 DelaySignalTimers(inputIndex) = New Timer()
                 AddHandler DelaySignalTimers(inputIndex).Tick, AddressOf DelaySignalTimer_Tick
+            End If
+
+            If DelaySignalStartTimers(inputIndex) Is Nothing Then
+                DelaySignalStartTimers(inputIndex) = New Timer()
+                AddHandler DelaySignalStartTimers(inputIndex).Tick, AddressOf DelaySignalStartTimer_Tick
             End If
 
             If FeedbackTimers(inputIndex) Is Nothing Then
@@ -877,6 +883,7 @@ Public Class Main
             DelayTimers(inputIndex).Enabled = False
             FeedbackTimers(inputIndex).Enabled = False
             DelaySignalTimers(inputIndex).Enabled = False
+            DelaySignalStartTimers(inputIndex).Enabled = False
             TPeriodTimers(inputIndex).Enabled = False
             TInterPeriodTimers(inputIndex).Enabled = False
             TInInterPeriod(inputIndex) = False
@@ -1088,10 +1095,21 @@ Public Class Main
             DelayOnset(Lever) = vTimeNow
             DelayComp(Lever) = vCC
 
-            ActivateStimulus(AC(vCC).DelayType(Lever), True)
+            DelaySignalStartTimers(Lever).Enabled = False
+            DelaySignalTimers(Lever).Enabled = False
 
-            If AC(vCC).DelaySignalDuration(Lever) > 0 AndAlso AC(vCC).DelaySignalDuration(Lever) < AC(vCC).DelayDuration(Lever) Then
-                DelaySignalTimers(Lever).Enabled = True
+            If AC(vCC).DelayType(Lever) <> "Unsignaled" AndAlso AC(vCC).DelayType(Lever) <> "None" Then
+                If AC(vCC).DelaySignalDuration(Lever) > 0 AndAlso AC(vCC).DelaySignalDuration(Lever) < AC(vCC).DelayDuration(Lever) Then
+                    If DelaySignalAtEnd(Lever) Then
+                        DelaySignalStartTimers(Lever).Interval = Math.Max(1, CInt((AC(vCC).DelayDuration(Lever) - AC(vCC).DelaySignalDuration(Lever)) * 1000))
+                        DelaySignalStartTimers(Lever).Enabled = True
+                    Else
+                        ActivateStimulus(AC(vCC).DelayType(Lever), True)
+                        DelaySignalTimers(Lever).Enabled = True
+                    End If
+                Else
+                    ActivateStimulus(AC(vCC).DelayType(Lever), True)
+                End If
             End If
 
         ElseIf Lever = -1 Then
@@ -1124,6 +1142,12 @@ Public Class Main
         End If
 
     End Sub
+
+    Private Function DelaySignalAtEnd(inputIndex As Integer) As Boolean
+        If AC(vCC).DelayType Is Nothing Then Return False
+        If inputIndex < 0 OrElse inputIndex > AC(vCC).DelayType.Length - 1 Then Return False
+        Return If(AC(vCC).DelayType(inputIndex), "").IndexOf("Signal End", StringComparison.OrdinalIgnoreCase) >= 0
+    End Function
 
 
     Private Function ReinforcerDelivery(reinforcerType As String, deliveryProbability As Integer, pelletProbability As Integer) As Boolean
@@ -1518,6 +1542,7 @@ RetryOrder:
         For inputIndex As Integer = 0 To MAX_INPUTS - 1
             If TPeriodTimers(inputIndex) IsNot Nothing Then TPeriodTimers(inputIndex).Enabled = False
             If TInterPeriodTimers(inputIndex) IsNot Nothing Then TInterPeriodTimers(inputIndex).Enabled = False
+            If DelaySignalStartTimers(inputIndex) IsNot Nothing Then DelaySignalStartTimers(inputIndex).Enabled = False
         Next
         If Arduino IsNot Nothing AndAlso Arduino.IsOpen Then Arduino.Close()
     End Sub
@@ -1583,6 +1608,8 @@ RetryOrder:
         If inputIndex < 0 Then Exit Sub
 
         DelayTimers(inputIndex).Enabled = False
+        DelaySignalStartTimers(inputIndex).Enabled = False
+        DelaySignalTimers(inputIndex).Enabled = False
         ActivateStimulus(AC(vCC).DelayType(inputIndex), False)
 
         Reinforce(inputIndex, True)
@@ -1604,6 +1631,18 @@ RetryOrder:
 
         DelaySignalTimers(inputIndex).Enabled = False
         ActivateStimulus(AC(vCC).DelayType(inputIndex), False)
+    End Sub
+
+    Private Sub DelaySignalStartTimer_Tick(sender As Object, e As EventArgs)
+        Dim inputIndex As Integer = InputTimerIndex(DelaySignalStartTimers, sender)
+        If inputIndex < 0 Then Exit Sub
+
+        DelaySignalStartTimers(inputIndex).Enabled = False
+        If DelayTimers(inputIndex).Enabled = False Then Exit Sub
+
+        ActivateStimulus(AC(vCC).DelayType(inputIndex), True)
+        DelaySignalTimers(inputIndex).Interval = Math.Max(1, CInt(AC(vCC).DelaySignalDuration(inputIndex) * 1000))
+        DelaySignalTimers(inputIndex).Enabled = True
     End Sub
 
     Private Sub FeedbackTimer_Tick(sender As Object, e As EventArgs)
@@ -1635,6 +1674,7 @@ RetryOrder:
         For inputIndex As Integer = 0 To MAX_INPUTS - 1
             If TPeriodTimers(inputIndex) IsNot Nothing Then TPeriodTimers(inputIndex).Enabled = False
             If TInterPeriodTimers(inputIndex) IsNot Nothing Then TInterPeriodTimers(inputIndex).Enabled = False
+            If DelaySignalStartTimers(inputIndex) IsNot Nothing Then DelaySignalStartTimers(inputIndex).Enabled = False
             ActivateStimulus(If(AC(vCC).TStimD Is Nothing, "None", AC(vCC).TStimD(inputIndex)), False)
             ActivateStimulus(If(AC(vCC).TStimDelta Is Nothing, "None", AC(vCC).TStimDelta(inputIndex)), False)
         Next
@@ -1718,6 +1758,7 @@ RetryOrder:
             DelayComp(inputIndex) = -1
             DelayTimers(inputIndex).Enabled = False
             DelaySignalTimers(inputIndex).Enabled = False
+            DelaySignalStartTimers(inputIndex).Enabled = False
             FeedbackTimers(inputIndex).Enabled = False
             ScheduleTimers(inputIndex).Enabled = False
             TPeriodTimers(inputIndex).Enabled = False

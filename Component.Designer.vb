@@ -115,6 +115,8 @@ Partial Class Component
         Me.txbDelayDurL1 = New System.Windows.Forms.TextBox()
         Me.Label16 = New System.Windows.Forms.Label()
         Me.txbDelaySignalDurationL1 = New System.Windows.Forms.TextBox()
+        Me.lblDelaySignalPlacement = New System.Windows.Forms.Label()
+        Me.cbbDelaySignalPlacement = New System.Windows.Forms.ComboBox()
         Me.lblAddedInputs = New System.Windows.Forms.Label()
         Me.lstInputs = New System.Windows.Forms.ListBox()
         Me.btnAddInput = New System.Windows.Forms.Button()
@@ -991,6 +993,8 @@ Partial Class Component
         Me.GroupBox2.Controls.Add(Me.txbDelayDurL1)
         Me.GroupBox2.Controls.Add(Me.Label16)
         Me.GroupBox2.Controls.Add(Me.txbDelaySignalDurationL1)
+        Me.GroupBox2.Controls.Add(Me.lblDelaySignalPlacement)
+        Me.GroupBox2.Controls.Add(Me.cbbDelaySignalPlacement)
         Me.GroupBox2.Location = New System.Drawing.Point(18, 356)
         Me.GroupBox2.Name = "GroupBox2"
         Me.GroupBox2.Size = New System.Drawing.Size(430, 175)
@@ -1128,6 +1132,25 @@ Partial Class Component
         Me.txbDelaySignalDurationL1.Size = New System.Drawing.Size(80, 20)
         Me.txbDelaySignalDurationL1.TabIndex = 11
         Me.txbDelaySignalDurationL1.Text = "1"
+        '
+        'lblDelaySignalPlacement
+        '
+        Me.lblDelaySignalPlacement.AutoSize = True
+        Me.lblDelaySignalPlacement.Location = New System.Drawing.Point(14, 142)
+        Me.lblDelaySignalPlacement.Name = "lblDelaySignalPlacement"
+        Me.lblDelaySignalPlacement.Size = New System.Drawing.Size(86, 13)
+        Me.lblDelaySignalPlacement.TabIndex = 13
+        Me.lblDelaySignalPlacement.Text = "Signal placement:"
+        '
+        'cbbDelaySignalPlacement
+        '
+        Me.cbbDelaySignalPlacement.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList
+        Me.cbbDelaySignalPlacement.FormattingEnabled = True
+        Me.cbbDelaySignalPlacement.Items.AddRange(New Object() {"Start", "End"})
+        Me.cbbDelaySignalPlacement.Location = New System.Drawing.Point(114, 139)
+        Me.cbbDelaySignalPlacement.Name = "cbbDelaySignalPlacement"
+        Me.cbbDelaySignalPlacement.Size = New System.Drawing.Size(86, 21)
+        Me.cbbDelaySignalPlacement.TabIndex = 14
         '
         'lblAddedInputs
         '
@@ -1341,6 +1364,8 @@ Partial Class Component
     Friend WithEvents txbDelayDurL1 As TextBox
     Friend WithEvents Label16 As Label
     Friend WithEvents txbDelaySignalDurationL1 As TextBox
+    Friend WithEvents lblDelaySignalPlacement As Label
+    Friend WithEvents cbbDelaySignalPlacement As ComboBox
     Friend WithEvents lblAddedInputs As Label
     Friend WithEvents lstInputs As ListBox
     Friend WithEvents btnAddInput As Button
