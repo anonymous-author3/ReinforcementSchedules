@@ -91,7 +91,12 @@ Public Class Component
     Private Function GetSelectedDelayType() As String
         If chkUnsignaledDelay.Checked Then Return "Unsignaled"
 
-        Return CheckedListText(clbDelayStim)
+        Dim delayType As String = CheckedListText(clbDelayStim)
+        If delayType <> "None" AndAlso ShouldShowDelaySignalPlacement() Then
+            delayType &= " / Signal " & ToStrSafe(cbbDelaySignalPlacement.Text, "Start")
+        End If
+
+        Return delayType
     End Function
 
     Private Function CheckedListText(list As CheckedListBox) As String
@@ -165,6 +170,15 @@ Public Class Component
         Return CheckedListContains(clbComponentStim, "Tone")
     End Function
 
+    Private Function ShouldShowDelaySignalPlacement() As Boolean
+        If chkUnsignaledDelay.Checked Then Return False
+        If CheckedListHasAny(clbDelayStim) = False Then Return False
+
+        Dim delayDuration As Double = ToDoubleSafe(txbDelayDurL1.Text, 0)
+        Dim signalDuration As Double = ToDoubleSafe(txbDelaySignalDurationL1.Text, 0)
+        Return signalDuration > 0 AndAlso signalDuration < delayDuration
+    End Function
+
     Private Sub UpdateFeedbackState()
         Dim enabled As Boolean = HasFeedbackSelection()
         txbStimDurL1.Enabled = enabled
@@ -200,11 +214,15 @@ Public Class Component
         txbDelaySignalDurationL1.Visible = signaled
         Label9.Visible = enabled
         Label16.Visible = signaled
+        lblDelaySignalPlacement.Visible = ShouldShowDelaySignalPlacement()
+        cbbDelaySignalPlacement.Visible = ShouldShowDelaySignalPlacement()
+        cbbDelaySignalPlacement.Enabled = ShouldShowDelaySignalPlacement()
         chkRetractL1.Visible = enabled
         If enabled = False Then
             chkRetractL1.Checked = False
         End If
         If signaled = False Then txbDelaySignalDurationL1.Text = "0"
+        If cbbDelaySignalPlacement.SelectedIndex < 0 AndAlso cbbDelaySignalPlacement.Items.Count > 0 Then cbbDelaySignalPlacement.SelectedIndex = 0
     End Sub
 
     Private Sub UpdateComponentIntermittencyState()
@@ -413,6 +431,7 @@ Public Class Component
         txbDelayDurL1.Text = "1"
         chkRetractL1.Checked = False
         chkUnsignaledDelay.Checked = False
+        If cbbDelaySignalPlacement.Items.Count > 0 Then cbbDelaySignalPlacement.SelectedIndex = 0
         ClearCheckedList(clbDelayStim)
         rdoLightDelay1L1.Checked = False
         rdoLightDelay2L1.Checked = False
@@ -673,6 +692,7 @@ Public Class Component
         ComponentToolTip.SetToolTip(rdoTOL1, "Time Out stops component stimulation, turns off chamber stimuli, and retracts all active inputs for the feedback duration.")
         ComponentToolTip.SetToolTip(txbDelayDurL1, "Delay duration in seconds. Decimal values such as 1.5 are allowed.")
         ComponentToolTip.SetToolTip(txbDelaySignalDurationL1, "Delay signal duration in seconds. It may be shorter or longer than the programmed delay; equal/greater values keep the signal on for the whole delay.")
+        ComponentToolTip.SetToolTip(cbbDelaySignalPlacement, "When signal duration is shorter than the delay, choose whether the signal appears at delay onset or right before reinforcement.")
         ComponentToolTip.SetToolTip(txbLightIntermittency, "0 keeps selected lights continuously on. Values greater than 0 set the on/off intermittency in seconds.")
         ComponentToolTip.SetToolTip(txbToneIntermittency, "0 keeps the tone continuously on. Values greater than 0 set the on/off intermittency in seconds.")
         ComponentToolTip.SetToolTip(txbTimeScheduleValue, "Time schedule value in seconds. FT delivers after this value; VT samples around this value.")
@@ -694,6 +714,7 @@ Public Class Component
         If cbbTimeReinforcer.Text = "" Then cbbTimeReinforcer.Text = "Pellet"
         If cbbScheduleMode.Items.Count > 0 AndAlso cbbScheduleMode.SelectedIndex < 0 Then cbbScheduleMode.SelectedIndex = 0
         If cbbTStartPeriod.Items.Count > 0 AndAlso cbbTStartPeriod.SelectedIndex < 0 Then cbbTStartPeriod.SelectedIndex = 0
+        If cbbDelaySignalPlacement.Items.Count > 0 AndAlso cbbDelaySignalPlacement.SelectedIndex < 0 Then cbbDelaySignalPlacement.SelectedIndex = 0
         ResetInputEditor()
         UpdateComponentIntermittencyState()
         UpdateTimeScheduleState()
@@ -757,6 +778,10 @@ Public Class Component
 
     Private Sub clbDelayStim_ItemCheck(sender As Object, e As ItemCheckEventArgs) Handles clbDelayStim.ItemCheck
         BeginInvoke(New MethodInvoker(AddressOf UpdateDelayState))
+    End Sub
+
+    Private Sub DelayTiming_TextChanged(sender As Object, e As EventArgs) Handles txbDelayDurL1.TextChanged, txbDelaySignalDurationL1.TextChanged
+        UpdateDelayState()
     End Sub
 
     Private Sub ComponentStim_CheckedChanged(sender As Object, e As EventArgs) Handles rdoComponentTone.CheckedChanged, rdoComponentStimLight1.CheckedChanged, rdoComponentStimLight2.CheckedChanged, rdoComponentStimLight3.CheckedChanged, rdoComponentStimLight4.CheckedChanged
