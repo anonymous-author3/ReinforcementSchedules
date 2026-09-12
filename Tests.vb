@@ -15,6 +15,37 @@ Public Class Tests
     Private lightsOn As Boolean
     Private closingTest As Boolean
     Private SimulationMode As Boolean = False
+    Private WithEvents acquisitionTimer As New Timer With {.Interval = 10}
+    Private serialBuffer As String = ""
+    Private ReadOnly Previous_Response() As String = Enumerable.Repeat("1", MAX_INPUTS).ToArray()
+
+    Private Sub AcquisitionTick(sender As Object, e As EventArgs) Handles acquisitionTimer.Tick
+        If closingTest OrElse SimulationMode Then Return
+        Try
+            If Arduino Is Nothing OrElse Not Arduino.IsOpen Then Throw New IO.IOException("The COM connection was closed.")
+            serialBuffer &= Arduino.ReadExisting()
+            Dim processed As Integer = 0
+            Dim newline As Integer = serialBuffer.IndexOf(vbLf, StringComparison.Ordinal)
+            While newline >= 0 AndAlso processed < 256
+                Dim values() As String = serialBuffer.Substring(0, newline).Trim().Split(","c)
+                serialBuffer = serialBuffer.Substring(newline + 1)
+                If values.Length <= MAX_INPUTS AndAlso values.All(Function(value) value = "0" OrElse value = "1") Then
+                    For inputIndex As Integer = 0 To values.Length - 1
+                        InputValueLabels(inputIndex).Text = values(inputIndex)
+                        If values(inputIndex) = "0" AndAlso Previous_Response(inputIndex) = "1" Then TestResponse(inputIndex)
+                        Previous_Response(inputIndex) = values(inputIndex)
+                    Next
+                End If
+                processed += 1
+                newline = serialBuffer.IndexOf(vbLf, StringComparison.Ordinal)
+            End While
+            If serialBuffer.Length > 65536 Then Throw New IO.IOException("Invalid Arduino response stream.")
+        Catch ex As Exception
+            StopTestHardware()
+            MessageBox.Show(Me, ex.Message, "Hardware tests")
+            Close()
+        End Try
+    End Sub
 
     Private Function TestInputName(inputIndex As Integer) As String
         For componentIndex As Integer = 1 To Math.Max(vCC, 1)
@@ -28,14 +59,6 @@ Public Class Tests
         Return "Input " & (inputIndex + 1)
     End Function
 
-    Private Function InputOutputCommand(inputIndex As Integer, turnOn As Boolean) As String
-        Dim onCommands() As String = {"L", "M", "C", "D", "N", "O"}
-        Dim offCommands() As String = {"l", "m", "c", "d", "n", "o"}
-
-        If inputIndex < 0 OrElse inputIndex > onCommands.Length - 1 Then Return ""
-        Return If(turnOn, onCommands(inputIndex), offCommands(inputIndex))
-    End Function
-
     Private Sub MarkTested(button As Button)
         If button Is Nothing Then Exit Sub
         button.BackColor = Color.LightGreen
@@ -46,12 +69,19 @@ Public Class Tests
         If SimulationMode Then Exit Sub
         If command = "" Then Exit Sub
         If Arduino Is Nothing OrElse Arduino.IsOpen = False Then Exit Sub
-        Arduino.WriteLine(command)
+        Try
+            Arduino.WriteLine(command)
+        Catch ex As Exception
+            If closingTest Then Return
+            StopTestHardware()
+            MessageBox.Show(Me, ex.Message, "Hardware tests")
+            Close()
+        End Try
     End Sub
 
     Private Function OpenArduinoOrSimulation() As Boolean
         Try
-            Arduino = New SerialPort(SetUp.txtCOM.Text, 9600)
+            Arduino = New SerialPort(SetUp.txtCOM.Text, 9600) With {.WriteTimeout = 100, .ReadTimeout = 100}
             Arduino.Open()
             SimulationMode = False
             Return True
@@ -165,36 +195,7 @@ Public Class Tests
         tmrChartTests.Interval = 1000
         tmrChartTests.Enabled = True
 
-        Do While closingTest = False
-            Try
-                If SimulationMode = False AndAlso Arduino IsNot Nothing AndAlso Arduino.IsOpen AndAlso Arduino.BytesToRead > 0 Then
-                    Dim readValues() As String = Split(Arduino.ReadLine(), ",")
-
-                    For inputIndex As Integer = 0 To MAX_INPUTS - 1
-                        If inputIndex <= readValues.Length - 1 Then
-                            Actual_Response(inputIndex) = readValues(inputIndex).Trim()
-                        End If
-
-                        If InputValueLabels(inputIndex) IsNot Nothing Then
-                            InputValueLabels(inputIndex).Text = Actual_Response(inputIndex)
-                        End If
-
-                        If Actual_Response(inputIndex) <> Previous_Response(inputIndex) AndAlso
-                           Actual_Response(inputIndex) <> "1" Then
-                            TestResponse(inputIndex)
-                        End If
-
-                        Previous_Response(inputIndex) = Actual_Response(inputIndex)
-                    Next
-                End If
-            Catch ex As Exception
-                If tmrChartTests.Enabled = False Then Exit Do
-            End Try
-
-            My.Application.DoEvents()
-        Loop
-
-        If Me.IsDisposed = False AndAlso Me.Disposing = False Then Me.Close()
+        acquisitionTimer.Start()
     End Sub
 
     Private Sub TestResponse(inputIndex As Integer)
@@ -257,10 +258,16 @@ Public Class Tests
     Private Sub StopTestHardware()
         If closingTest Then Exit Sub
         closingTest = True
-        SafeWrite("abefhtlmcdnop")
-        If Arduino IsNot Nothing AndAlso Arduino.IsOpen Then Arduino.Close()
+        acquisitionTimer.Stop()
         tmrFeeder.Enabled = False
         tmrChartTests.Enabled = False
+        Try
+            SafeWrite("abefht" & AllInputsOffCommand() & "p")
+        Catch
+        Finally
+            If Arduino IsNot Nothing Then Arduino.Dispose()
+        End Try
+        acquisitionTimer.Dispose()
     End Sub
 
     Private Sub btnClose_Click(sender As Object, e As EventArgs) Handles btnClose.Click

@@ -85,19 +85,36 @@
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="My Project\Module1.vb" />
+    <Compile Include="LeverCommands.vb" />
+    <Compile Include="LeverCommandSettings.vb">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="SetUp.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="SetUp.Hub.vb">
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="SetUp.Designer.vb">
       <DependentUpon>SetUp.vb</DependentUpon>
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="Main.Designer.vb">
-      <DependentUpon>Main.vb</DependentUpon>
+    <Compile Include="ChamberSession.Designer.vb">
+      <DependentUpon>ChamberSession.vb</DependentUpon>
     </Compile>
     <Compile Include="Main.vb">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="ChamberSession.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="ChamberSession.State.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="ChamberSession.Runtime.vb">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="ChamberConfiguration.vb" />
     <Compile Include="My Project\AssemblyInfo.vb" />
     <Compile Include="My Project\Application.Designer.vb">
       <AutoGen>True</AutoGen>
@@ -125,8 +142,8 @@
     <EmbeddedResource Include="Component.resx">
       <DependentUpon>Component.vb</DependentUpon>
     </EmbeddedResource>
-    <EmbeddedResource Include="Main.resx">
-      <DependentUpon>Main.vb</DependentUpon>
+    <EmbeddedResource Include="ChamberSession.resx">
+      <DependentUpon>ChamberSession.vb</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="My Project\Resources.resx">
       <Generator>VbMyResourcesResXFileCodeGenerator</Generator>

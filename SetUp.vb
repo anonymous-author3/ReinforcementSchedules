@@ -1,68 +1,80 @@
-﻿Public Class SetUp
+Public Class SetUp
     Private ReadOnly SetUpToolTip As New ToolTip()
 
     Private Sub WriteConfigLine(fileNumber As Integer, label As String, value As Object)
         WriteLine(fileNumber, label & ": " & CStr(value))
     End Sub
 
+    Private Sub AppendConfigLine(lines As List(Of String), label As String, value As Object)
+        lines.Add(label & ": " & CStr(value))
+    End Sub
+
     Private Sub WriteConfigurationSnapshot(fileNumber As Integer, includeSavedAt As Boolean)
-        If includeSavedAt Then WriteConfigLine(fileNumber, "Saved At", Format(Date.Now, "dd-MM-yyyy_hh-mm-ss"))
-        WriteConfigLine(fileNumber, "Component Count", vCC)
-        WriteConfigLine(fileNumber, "COM Port", txtCOM.Text)
-        WriteConfigLine(fileNumber, "Start Delay Seconds", txbStart.Text)
-        WriteConfigLine(fileNumber, "Post Session Seconds", txbPostSession.Text)
-        WriteConfigLine(fileNumber, "Inter Component Interval Seconds", txbICI.Text)
-        WriteConfigLine(fileNumber, "Inter Component Interval Enabled", chkICIEnabled.Checked)
-        WriteConfigLine(fileNumber, "Inter Component Interval Retract Inputs", chkICIRetractInputs.Checked)
-        WriteConfigLine(fileNumber, "Inter Component Interval Stimulus Type", ICIStimulusType())
-        WriteConfigLine(fileNumber, "Random Component Presentation", CheckBox1.Checked)
-        WriteConfigLine(fileNumber, "Component Presentation Order", txbComponentOrder.Text)
+        For Each line As String In ConfigurationSnapshotLines(includeSavedAt)
+            WriteLine(fileNumber, line)
+        Next
+    End Sub
+    Private Function ConfigurationSnapshotLines(includeSavedAt As Boolean) As String()
+        Dim lines As New List(Of String)()
+        If includeSavedAt Then AppendConfigLine(lines, "Saved At", Format(Date.Now, "dd-MM-yyyy_hh-mm-ss"))
+        AppendConfigLine(lines, "Component Count", vCC)
+        AppendConfigLine(lines, "COM Port", txtCOM.Text)
+        AppendConfigLine(lines, "Lever Command Letters", LeverCommandLetters)
+        AppendConfigLine(lines, "Start Delay Seconds", txbStart.Text)
+        AppendConfigLine(lines, "Post Session Seconds", txbPostSession.Text)
+        AppendConfigLine(lines, "Inter Component Interval Seconds", txbICI.Text)
+        AppendConfigLine(lines, "Inter Component Interval Enabled", chkICIEnabled.Checked)
+        AppendConfigLine(lines, "Inter Component Interval Retract Inputs", chkICIRetractInputs.Checked)
+        AppendConfigLine(lines, "Inter Component Interval Stimulus Type", ICIStimulusType())
+        AppendConfigLine(lines, "Random Component Presentation", CheckBox1.Checked)
+        AppendConfigLine(lines, "Component Presentation Order", txbComponentOrder.Text)
 
         For i = 1 To vCC
-            WriteConfigLine(fileNumber, "Component " & i & " Houselight On Off", AC(i).HouselightOnOff)
-            WriteConfigLine(fileNumber, "Component " & i & " Changeover Delay Ms", AC(i).COD)
-            WriteConfigLine(fileNumber, "Component " & i & " Max Reinforcers", AC(i).MaxRefs)
-            WriteConfigLine(fileNumber, "Component " & i & " Name", ComponentDisplayName(i))
-            WriteConfigLine(fileNumber, "Component " & i & " Duration Seconds", AC(i).ComponentDuration)
-            WriteConfigLine(fileNumber, "Component " & i & " Iterations", AC(i).ComponentIteration)
-            WriteConfigLine(fileNumber, "Component " & i & " Light Intermittency Seconds", AC(i).ComponentLightIntermittency)
-            WriteConfigLine(fileNumber, "Component " & i & " Tone Intermittency Seconds", AC(i).ComponentStimDuration)
-            WriteConfigLine(fileNumber, "Component " & i & " Stimulus Type", AC(i).ComponentStimType)
-            WriteConfigLine(fileNumber, "Component " & i & " Time Schedule Type", If(AC(i).TimeScheduleType = "", "None", AC(i).TimeScheduleType))
-            WriteConfigLine(fileNumber, "Component " & i & " Time Schedule Value Seconds", AC(i).TimeScheduleValue)
-            WriteConfigLine(fileNumber, "Component " & i & " Time Reinforcer Magnitude", AC(i).TimeMagnitude)
-            WriteConfigLine(fileNumber, "Component " & i & " Time Reinforcer Type", If(AC(i).TimeReinforcer = "", "N/A", AC(i).TimeReinforcer))
-            WriteConfigLine(fileNumber, "Component " & i & " Time Reinforcer Delivery Probability", AC(i).TimeDeliveryP)
-            WriteConfigLine(fileNumber, "Component " & i & " Time Reinforcer Pellet Probability", AC(i).TimePelletP)
-            WriteConfigLine(fileNumber, "Component " & i & " Input Count", AC(i).InputCount)
+            AppendConfigLine(lines, "Component " & i & " Houselight On Off", AC(i).HouselightOnOff)
+            AppendConfigLine(lines, "Component " & i & " Changeover Delay Ms", AC(i).COD)
+            AppendConfigLine(lines, "Component " & i & " Max Reinforcers", AC(i).MaxRefs)
+            AppendConfigLine(lines, "Component " & i & " Name", ComponentDisplayName(i))
+            AppendConfigLine(lines, "Component " & i & " Duration Seconds", AC(i).ComponentDuration)
+            AppendConfigLine(lines, "Component " & i & " Iterations", AC(i).ComponentIteration)
+            AppendConfigLine(lines, "Component " & i & " Light Intermittency Seconds", AC(i).ComponentLightIntermittency)
+            AppendConfigLine(lines, "Component " & i & " Tone Intermittency Seconds", AC(i).ComponentStimDuration)
+            AppendConfigLine(lines, "Component " & i & " Stimulus Type", AC(i).ComponentStimType)
+            AppendConfigLine(lines, "Component " & i & " Time Schedule Type", If(AC(i).TimeScheduleType = "", "None", AC(i).TimeScheduleType))
+            AppendConfigLine(lines, "Component " & i & " Time Schedule Value Seconds", AC(i).TimeScheduleValue)
+            AppendConfigLine(lines, "Component " & i & " Time Reinforcer Magnitude", AC(i).TimeMagnitude)
+            AppendConfigLine(lines, "Component " & i & " Time Reinforcer Type", If(AC(i).TimeReinforcer = "", "N/A", AC(i).TimeReinforcer))
+            AppendConfigLine(lines, "Component " & i & " Time Reinforcer Delivery Probability", AC(i).TimeDeliveryP)
+            AppendConfigLine(lines, "Component " & i & " Time Reinforcer Pellet Probability", AC(i).TimePelletP)
+            AppendConfigLine(lines, "Component " & i & " Input Count", AC(i).InputCount)
 
             For inputIndex As Integer = 0 To AC(i).InputCount - 1
                 Dim noInputReinforcer As Boolean = HasNoInputReinforcer(i, inputIndex)
-                WriteConfigLine(fileNumber, "Component " & i & " Input " & (inputIndex + 1) & " Name", AC(i).InputName(inputIndex))
-                WriteConfigLine(fileNumber, "Component " & i & " Input " & (inputIndex + 1) & " Schedule Type", AC(i).ScheduleType(inputIndex))
-                WriteConfigLine(fileNumber, "Component " & i & " Input " & (inputIndex + 1) & " Schedule Value", If(noInputReinforcer, "N/A", CStr(AC(i).ScheduleValue(inputIndex))))
-                WriteConfigLine(fileNumber, "Component " & i & " Input " & (inputIndex + 1) & " Reinforcer Magnitude", If(noInputReinforcer, "N/A", CStr(AC(i).Magnitude(inputIndex))))
-                WriteConfigLine(fileNumber, "Component " & i & " Input " & (inputIndex + 1) & " Reinforcer Type", If(noInputReinforcer, "N/A", AC(i).Reinforcer(inputIndex)))
-                WriteConfigLine(fileNumber, "Component " & i & " Input " & (inputIndex + 1) & " Reinforcer Delivery Probability", If(noInputReinforcer, "N/A", CStr(AC(i).DeliveryP(inputIndex))))
-                WriteConfigLine(fileNumber, "Component " & i & " Input " & (inputIndex + 1) & " Pellet Probability", If(noInputReinforcer, "N/A", CStr(AC(i).PelletP(inputIndex))))
-                WriteConfigLine(fileNumber, "Component " & i & " Input " & (inputIndex + 1) & " T TD Seconds", If(AC(i).TDurationD Is Nothing, 0, AC(i).TDurationD(inputIndex)))
-                WriteConfigLine(fileNumber, "Component " & i & " Input " & (inputIndex + 1) & " T TDelta Seconds", If(AC(i).TDurationDelta Is Nothing, 0, AC(i).TDurationDelta(inputIndex)))
-                WriteConfigLine(fileNumber, "Component " & i & " Input " & (inputIndex + 1) & " T Probability TD", If(AC(i).TProbabilityD Is Nothing, 0, AC(i).TProbabilityD(inputIndex)))
-                WriteConfigLine(fileNumber, "Component " & i & " Input " & (inputIndex + 1) & " T Probability TDelta", If(AC(i).TProbabilityDelta Is Nothing, 0, AC(i).TProbabilityDelta(inputIndex)))
-                WriteConfigLine(fileNumber, "Component " & i & " Input " & (inputIndex + 1) & " T Cycles", If(AC(i).TCycles Is Nothing, 0, AC(i).TCycles(inputIndex)))
-                WriteConfigLine(fileNumber, "Component " & i & " Input " & (inputIndex + 1) & " T Start Period", If(AC(i).TStartPeriod Is Nothing, "", AC(i).TStartPeriod(inputIndex)))
-                WriteConfigLine(fileNumber, "Component " & i & " Input " & (inputIndex + 1) & " T Inter Period Seconds", If(AC(i).TInterPeriod Is Nothing, 0, AC(i).TInterPeriod(inputIndex)))
-                WriteConfigLine(fileNumber, "Component " & i & " Input " & (inputIndex + 1) & " T TD Stimulus Type", If(AC(i).TStimD Is Nothing, "None", AC(i).TStimD(inputIndex)))
-                WriteConfigLine(fileNumber, "Component " & i & " Input " & (inputIndex + 1) & " T TDelta Stimulus Type", If(AC(i).TStimDelta Is Nothing, "None", AC(i).TStimDelta(inputIndex)))
-                WriteConfigLine(fileNumber, "Component " & i & " Input " & (inputIndex + 1) & " Feedback Duration Seconds", AC(i).FeedbackDuration(inputIndex))
-                WriteConfigLine(fileNumber, "Component " & i & " Input " & (inputIndex + 1) & " Feedback Type", AC(i).FeedbackType(inputIndex))
-                WriteConfigLine(fileNumber, "Component " & i & " Input " & (inputIndex + 1) & " Delay Duration Seconds", AC(i).DelayDuration(inputIndex))
-                WriteConfigLine(fileNumber, "Component " & i & " Input " & (inputIndex + 1) & " Delay Type", AC(i).DelayType(inputIndex))
-                WriteConfigLine(fileNumber, "Component " & i & " Input " & (inputIndex + 1) & " Delay Retract", AC(i).DelayRetract(inputIndex))
-                WriteConfigLine(fileNumber, "Component " & i & " Input " & (inputIndex + 1) & " Delay Signal Duration Seconds", AC(i).DelaySignalDuration(inputIndex))
+                AppendConfigLine(lines, "Component " & i & " Input " & (inputIndex + 1) & " Name", AC(i).InputName(inputIndex))
+                AppendConfigLine(lines, "Component " & i & " Input " & (inputIndex + 1) & " Schedule Type", AC(i).ScheduleType(inputIndex))
+                AppendConfigLine(lines, "Component " & i & " Input " & (inputIndex + 1) & " Schedule Value", If(noInputReinforcer, "N/A", CStr(AC(i).ScheduleValue(inputIndex))))
+                AppendConfigLine(lines, "Component " & i & " Input " & (inputIndex + 1) & " Reinforcer Magnitude", If(noInputReinforcer, "N/A", CStr(AC(i).Magnitude(inputIndex))))
+                AppendConfigLine(lines, "Component " & i & " Input " & (inputIndex + 1) & " Reinforcer Type", If(noInputReinforcer, "N/A", AC(i).Reinforcer(inputIndex)))
+                AppendConfigLine(lines, "Component " & i & " Input " & (inputIndex + 1) & " Reinforcer Delivery Probability", If(noInputReinforcer, "N/A", CStr(AC(i).DeliveryP(inputIndex))))
+                AppendConfigLine(lines, "Component " & i & " Input " & (inputIndex + 1) & " Pellet Probability", If(noInputReinforcer, "N/A", CStr(AC(i).PelletP(inputIndex))))
+                AppendConfigLine(lines, "Component " & i & " Input " & (inputIndex + 1) & " T TD Seconds", If(AC(i).TDurationD Is Nothing, 0, AC(i).TDurationD(inputIndex)))
+                AppendConfigLine(lines, "Component " & i & " Input " & (inputIndex + 1) & " T TDelta Seconds", If(AC(i).TDurationDelta Is Nothing, 0, AC(i).TDurationDelta(inputIndex)))
+                AppendConfigLine(lines, "Component " & i & " Input " & (inputIndex + 1) & " T Probability TD", If(AC(i).TProbabilityD Is Nothing, 0, AC(i).TProbabilityD(inputIndex)))
+                AppendConfigLine(lines, "Component " & i & " Input " & (inputIndex + 1) & " T Probability TDelta", If(AC(i).TProbabilityDelta Is Nothing, 0, AC(i).TProbabilityDelta(inputIndex)))
+                AppendConfigLine(lines, "Component " & i & " Input " & (inputIndex + 1) & " T Cycles", If(AC(i).TCycles Is Nothing, 0, AC(i).TCycles(inputIndex)))
+                AppendConfigLine(lines, "Component " & i & " Input " & (inputIndex + 1) & " T Start Period", If(AC(i).TStartPeriod Is Nothing, "", AC(i).TStartPeriod(inputIndex)))
+                AppendConfigLine(lines, "Component " & i & " Input " & (inputIndex + 1) & " T Inter Period Seconds", If(AC(i).TInterPeriod Is Nothing, 0, AC(i).TInterPeriod(inputIndex)))
+                AppendConfigLine(lines, "Component " & i & " Input " & (inputIndex + 1) & " T TD Stimulus Type", If(AC(i).TStimD Is Nothing, "None", AC(i).TStimD(inputIndex)))
+                AppendConfigLine(lines, "Component " & i & " Input " & (inputIndex + 1) & " T TDelta Stimulus Type", If(AC(i).TStimDelta Is Nothing, "None", AC(i).TStimDelta(inputIndex)))
+                AppendConfigLine(lines, "Component " & i & " Input " & (inputIndex + 1) & " Feedback Duration Seconds", AC(i).FeedbackDuration(inputIndex))
+                AppendConfigLine(lines, "Component " & i & " Input " & (inputIndex + 1) & " Feedback Type", AC(i).FeedbackType(inputIndex))
+                AppendConfigLine(lines, "Component " & i & " Input " & (inputIndex + 1) & " Delay Duration Seconds", AC(i).DelayDuration(inputIndex))
+                AppendConfigLine(lines, "Component " & i & " Input " & (inputIndex + 1) & " Delay Type", AC(i).DelayType(inputIndex))
+                AppendConfigLine(lines, "Component " & i & " Input " & (inputIndex + 1) & " Delay Retract", AC(i).DelayRetract(inputIndex))
+                AppendConfigLine(lines, "Component " & i & " Input " & (inputIndex + 1) & " Delay Signal Duration Seconds", AC(i).DelaySignalDuration(inputIndex))
             Next
         Next
-    End Sub
+        Return lines.ToArray()
+    End Function
 
     Private Function ReadConfigValue(reader As System.IO.TextReader) As String
         Dim line As String = reader.ReadLine()
@@ -75,31 +87,7 @@
     End Function
 
     Private Function ComponentBlueprintClone(source As ComponentBlueprint) As ComponentBlueprint
-        Dim copy As ComponentBlueprint = source
-        If source.ComponentDuration_measured IsNot Nothing Then copy.ComponentDuration_measured = DirectCast(source.ComponentDuration_measured.Clone(), Integer())
-        If source.InputName IsNot Nothing Then copy.InputName = DirectCast(source.InputName.Clone(), String())
-        If source.ScheduleType IsNot Nothing Then copy.ScheduleType = DirectCast(source.ScheduleType.Clone(), String())
-        If source.ScheduleValue IsNot Nothing Then copy.ScheduleValue = DirectCast(source.ScheduleValue.Clone(), Integer())
-        If source.Magnitude IsNot Nothing Then copy.Magnitude = DirectCast(source.Magnitude.Clone(), Integer())
-        If source.Reinforcer IsNot Nothing Then copy.Reinforcer = DirectCast(source.Reinforcer.Clone(), String())
-        If source.DeliveryP IsNot Nothing Then copy.DeliveryP = DirectCast(source.DeliveryP.Clone(), Integer())
-        If source.PelletP IsNot Nothing Then copy.PelletP = DirectCast(source.PelletP.Clone(), Integer())
-        If source.TDurationD IsNot Nothing Then copy.TDurationD = DirectCast(source.TDurationD.Clone(), Double())
-        If source.TDurationDelta IsNot Nothing Then copy.TDurationDelta = DirectCast(source.TDurationDelta.Clone(), Double())
-        If source.TProbabilityD IsNot Nothing Then copy.TProbabilityD = DirectCast(source.TProbabilityD.Clone(), Integer())
-        If source.TProbabilityDelta IsNot Nothing Then copy.TProbabilityDelta = DirectCast(source.TProbabilityDelta.Clone(), Integer())
-        If source.TCycles IsNot Nothing Then copy.TCycles = DirectCast(source.TCycles.Clone(), Integer())
-        If source.TStartPeriod IsNot Nothing Then copy.TStartPeriod = DirectCast(source.TStartPeriod.Clone(), String())
-        If source.TInterPeriod IsNot Nothing Then copy.TInterPeriod = DirectCast(source.TInterPeriod.Clone(), Double())
-        If source.TStimD IsNot Nothing Then copy.TStimD = DirectCast(source.TStimD.Clone(), String())
-        If source.TStimDelta IsNot Nothing Then copy.TStimDelta = DirectCast(source.TStimDelta.Clone(), String())
-        If source.FeedbackDuration IsNot Nothing Then copy.FeedbackDuration = DirectCast(source.FeedbackDuration.Clone(), Double())
-        If source.FeedbackType IsNot Nothing Then copy.FeedbackType = DirectCast(source.FeedbackType.Clone(), String())
-        If source.DelayDuration IsNot Nothing Then copy.DelayDuration = DirectCast(source.DelayDuration.Clone(), Double())
-        If source.DelaySignalDuration IsNot Nothing Then copy.DelaySignalDuration = DirectCast(source.DelaySignalDuration.Clone(), Double())
-        If source.DelayType IsNot Nothing Then copy.DelayType = DirectCast(source.DelayType.Clone(), String())
-        If source.DelayRetract IsNot Nothing Then copy.DelayRetract = DirectCast(source.DelayRetract.Clone(), Boolean())
-        Return copy
+        Return ChamberConfiguration.CloneComponent(source)
     End Function
 
     Private Function SnapshotComponents() As ComponentBlueprint()
@@ -190,7 +178,7 @@
 
         Dim sequence As New List(Of Integer)
         Dim parts() As String = sequenceText.Split(New Char() {","c, ";"c, " "c, vbTab}, StringSplitOptions.RemoveEmptyEntries)
-        Dim componentLimit As Integer = If(MAXvCC > 0, MAXvCC, vCC)
+        Dim componentLimit As Integer = vCC
 
         For Each part As String In parts
             Dim componentIndex As Integer
@@ -242,20 +230,6 @@
         Return ""
     End Function
 
-    Private Sub ApplyManualComponentSequence(sequence As List(Of Integer))
-        If sequence Is Nothing Then Exit Sub
-
-        Dim counts(MAXvCC) As Integer
-        For Each componentIndex As Integer In sequence
-            counts(componentIndex) += 1
-        Next
-
-        For i = 1 To MAXvCC
-            AC(i).ComponentIteration = CByte(Math.Min(255, counts(i)))
-            AC(i).IterationsLeft = AC(i).ComponentIteration
-            ReDim AC(i).ComponentDuration_measured(AC(i).ComponentIteration)
-        Next
-    End Sub
 
     Private Function ComponentDisplayName(componentIndex As Integer) As String
         If AC(componentIndex).ComponentName <> "" Then Return AC(componentIndex).ComponentName
@@ -391,6 +365,7 @@
     End Sub
 
     Private Sub SetUp_Load(sender As Object, e As EventArgs) Handles MyBase.Load
+        ConfigureHubControls()
         SetUpToolTip.InitialDelay = 300
         SetUpToolTip.ReshowDelay = 100
         SetUpToolTip.AutoPopDelay = 7000
@@ -399,85 +374,14 @@
         SetUpToolTip.SetToolTip(txbStart, "Pre-session period in seconds before the first component starts, useful for habituation.")
         SetUpToolTip.SetToolTip(txbPostSession, "Post-session period in seconds after the session ends, useful as a resting period.")
         SetUpToolTip.SetToolTip(txbComponentOrder, "Optional explicit component order, e.g., 1,2,1,3. Leave blank to use the order components were added.")
+        SetUpToolTip.SetToolTip(btnLeverCommands, "Set the Arduino letter for each input. Sessions, manual controls, and tests use these same letters.")
         UpdateICIState()
         UpdateComponentOrderState()
         RefreshComponentSummaryTable()
     End Sub
 
     Private Sub btnComenzar_Click(sender As Object, e As EventArgs) Handles btnComenzar.Click
-        Dim ask As MsgBoxResult = MsgBox("Did you test everything?", MsgBoxStyle.YesNo)
-        If ask = MsgBoxResult.Yes Then
-
-            'Do not start if no components were configured
-            If vCC <= 0 Then
-                MessageBox.Show("No components have been added. Please add at least one component before starting.")
-                Exit Sub
-            End If
-
-            For i = 1 To vCC
-                If AC(i).ComponentDuration <= 0 Then
-                    MessageBox.Show("Component " & i & " has a duration of 0. Please set a valid duration before starting.")
-                    Exit Sub
-                End If
-            Next
-
-            Dim componentOrderError As String = ManualComponentSequenceValidationError()
-            If componentOrderError <> "" Then
-                MessageBox.Show(componentOrderError)
-                Exit Sub
-            End If
-
-            If txbPostSession.Text = "" Then txbPostSession.Text = 0
-            If txbStart.Text = "" Then txbStart.Text = 0
-
-            'This checks for errors or missing data in the set up and prompts the user for corrections. If no problem is found the selected programs are initiated.
-            If txtSubject.Text = "" Or txtSession.Text = "" Or txtCOM.Text = "" Then
-                MessageBox.Show("Some session data is missing.")
-            Else
-
-                vFile(0) = "C:\Data\Raw\" & txtSubject.Text & "_" & txtSession.Text & "_Raw.txt"
-                vFile(1) = "C:\Data\Summary\" & txtSubject.Text & "_" & txtSession.Text & "Summary.txt"
-                FileClose(1)
-                FileClose(2)
-                FileOpen(1, vFile(0), OpenMode.Append)
-                FileOpen(2, vFile(1), OpenMode.Append)
-                SessionUID = Guid.NewGuid().ToString("N")
-                WriteLine(1, "Session UID: " & SessionUID)
-                WriteLine(2, Format(Date.Now, "dd-MM-yyyy_hh-mm-ss"))
-                WriteLine(2, "Session UID: " & SessionUID)
-                WriteLine(2, "Subject: " & txtSubject.Text)
-                WriteLine(2, "Session: " & txtSession.Text)
-                WriteLine(2, "Weight: " & txtWeight.Text)
-                WriteLine(2, "COM Port: " & txtCOM.Text)
-                WriteLine(2, "")
-                WriteLine(2, "Configuration used:")
-                WriteConfigurationSnapshot(2, False)
-                WriteLine(2, "")
-                WriteLine(2, "Event code legend:")
-                MAXvCC = vCC
-                For inputIndex As Integer = 0 To MAX_INPUTS - 1
-                    WriteLine(2, "Input " & (inputIndex + 1) & " response: " & (inputIndex + 1))
-                    WriteLine(2, "Input " & (inputIndex + 1) & " reinforcer: R" & (inputIndex + 1))
-                    WriteLine(2, "Input " & (inputIndex + 1) & " r on Delay: D" & (inputIndex + 1))
-                Next
-                vCC = 1
-                For i = 1 To MAXvCC
-                    AC(i).IterationsLeft = AC(i).ComponentIteration
-                    ReDim AC(i).ComponentDuration_measured(AC(i).ComponentIteration)
-                Next
-                ApplyManualComponentSequence(ManualComponentSequence())
-
-
-                Dim x As New Main
-                x.Show()
-                If x.ArduinoVB() = False Then
-                    FileClose(1)
-                    FileClose(2)
-                    Exit Sub
-                End If
-
-            End If
-        End If
+        AddConfiguredChamber()
     End Sub
 
     Private Sub btnAddComponent_Click(sender As Object, e As EventArgs) Handles btnAddComponent.Click
@@ -503,68 +407,25 @@
     End Sub
 
     Private Sub btnTests_Click(sender As Object, e As EventArgs) Handles btnTests.Click
+        If sessionHub IsNot Nothing AndAlso Not sessionHub.IsDisposed AndAlso sessionHub.PortReserved(txtCOM.Text) Then
+            MessageBox.Show("This COM port is assigned to a box in the hub. Remove that box before opening hardware tests.")
+            Return
+        End If
         Dim f As New Tests
         f.ShowDialog()
+    End Sub
+
+    Private Sub btnLeverCommands_Click(sender As Object, e As EventArgs) Handles btnLeverCommands.Click
+        Using settings As New LeverCommandSettings()
+            settings.ShowDialog(Me)
+        End Using
     End Sub
 
     Private Sub btnSave_Click(sender As Object, e As EventArgs) Handles btnSave.Click
         If vCC > 0 Then
             vFile(2) = "C:\SavedPrograms\NewProgram(Rename me please)_" & Strings.Right(CStr(Environment.TickCount), 5) & ".txt"
             FileOpen(3, vFile(2), OpenMode.Append)
-            WriteConfigLine(3, "Saved At", Format(Date.Now, "dd-MM-yyyy_hh-mm-ss"))
-            WriteConfigLine(3, "Component Count", vCC)
-            WriteConfigLine(3, "COM Port", txtCOM.Text)
-            WriteConfigLine(3, "Start Delay Seconds", txbStart.Text)
-            WriteConfigLine(3, "Post Session Seconds", txbPostSession.Text)
-            WriteConfigLine(3, "Inter Component Interval Seconds", txbICI.Text)
-            WriteConfigLine(3, "Inter Component Interval Enabled", chkICIEnabled.Checked)
-            WriteConfigLine(3, "Inter Component Interval Retract Inputs", chkICIRetractInputs.Checked)
-            WriteConfigLine(3, "Inter Component Interval Stimulus Type", ICIStimulusType())
-            WriteConfigLine(3, "Random Component Presentation", CheckBox1.Checked)
-            WriteConfigLine(3, "Component Presentation Order", txbComponentOrder.Text)
-            For i = 1 To vCC
-                WriteConfigLine(3, "Component " & i & " Houselight On Off", AC(i).HouselightOnOff)
-                WriteConfigLine(3, "Component " & i & " Changeover Delay Ms", AC(i).COD)
-                WriteConfigLine(3, "Component " & i & " Max Reinforcers", AC(i).MaxRefs)
-                WriteConfigLine(3, "Component " & i & " Name", ComponentDisplayName(i))
-                WriteConfigLine(3, "Component " & i & " Duration Seconds", AC(i).ComponentDuration)
-                WriteConfigLine(3, "Component " & i & " Iterations", AC(i).ComponentIteration)
-                WriteConfigLine(3, "Component " & i & " Light Intermittency Seconds", AC(i).ComponentLightIntermittency)
-                WriteConfigLine(3, "Component " & i & " Tone Intermittency Seconds", AC(i).ComponentStimDuration)
-                WriteConfigLine(3, "Component " & i & " Stimulus Type", AC(i).ComponentStimType)
-                WriteConfigLine(3, "Component " & i & " Time Schedule Type", If(AC(i).TimeScheduleType = "", "None", AC(i).TimeScheduleType))
-                WriteConfigLine(3, "Component " & i & " Time Schedule Value Seconds", AC(i).TimeScheduleValue)
-                WriteConfigLine(3, "Component " & i & " Time Reinforcer Magnitude", AC(i).TimeMagnitude)
-                WriteConfigLine(3, "Component " & i & " Time Reinforcer Type", If(AC(i).TimeReinforcer = "", "N/A", AC(i).TimeReinforcer))
-                WriteConfigLine(3, "Component " & i & " Time Reinforcer Delivery Probability", AC(i).TimeDeliveryP)
-                WriteConfigLine(3, "Component " & i & " Time Reinforcer Pellet Probability", AC(i).TimePelletP)
-                WriteConfigLine(3, "Component " & i & " Input Count", AC(i).InputCount)
-                For inputIndex As Integer = 0 To AC(i).InputCount - 1
-                    Dim noInputReinforcer As Boolean = HasNoInputReinforcer(i, inputIndex)
-                    WriteConfigLine(3, "Component " & i & " Input " & (inputIndex + 1) & " Name", AC(i).InputName(inputIndex))
-                    WriteConfigLine(3, "Component " & i & " Input " & (inputIndex + 1) & " Schedule Type", AC(i).ScheduleType(inputIndex))
-                    WriteConfigLine(3, "Component " & i & " Input " & (inputIndex + 1) & " Schedule Value", If(noInputReinforcer, "N/A", CStr(AC(i).ScheduleValue(inputIndex))))
-                    WriteConfigLine(3, "Component " & i & " Input " & (inputIndex + 1) & " Reinforcer Magnitude", If(noInputReinforcer, "N/A", CStr(AC(i).Magnitude(inputIndex))))
-                    WriteConfigLine(3, "Component " & i & " Input " & (inputIndex + 1) & " Reinforcer Type", If(noInputReinforcer, "N/A", AC(i).Reinforcer(inputIndex)))
-                    WriteConfigLine(3, "Component " & i & " Input " & (inputIndex + 1) & " Reinforcer Delivery Probability", If(noInputReinforcer, "N/A", CStr(AC(i).DeliveryP(inputIndex))))
-                    WriteConfigLine(3, "Component " & i & " Input " & (inputIndex + 1) & " Pellet Probability", If(noInputReinforcer, "N/A", CStr(AC(i).PelletP(inputIndex))))
-                    WriteConfigLine(3, "Component " & i & " Input " & (inputIndex + 1) & " T TD Seconds", If(AC(i).TDurationD Is Nothing, 0, AC(i).TDurationD(inputIndex)))
-                    WriteConfigLine(3, "Component " & i & " Input " & (inputIndex + 1) & " T TDelta Seconds", If(AC(i).TDurationDelta Is Nothing, 0, AC(i).TDurationDelta(inputIndex)))
-                    WriteConfigLine(3, "Component " & i & " Input " & (inputIndex + 1) & " T Probability TD", If(AC(i).TProbabilityD Is Nothing, 0, AC(i).TProbabilityD(inputIndex)))
-                    WriteConfigLine(3, "Component " & i & " Input " & (inputIndex + 1) & " T Probability TDelta", If(AC(i).TProbabilityDelta Is Nothing, 0, AC(i).TProbabilityDelta(inputIndex)))
-                    WriteConfigLine(3, "Component " & i & " Input " & (inputIndex + 1) & " T Cycles", If(AC(i).TCycles Is Nothing, 0, AC(i).TCycles(inputIndex)))
-                    WriteConfigLine(3, "Component " & i & " Input " & (inputIndex + 1) & " T Start Period", If(AC(i).TStartPeriod Is Nothing, "", AC(i).TStartPeriod(inputIndex)))
-                    WriteConfigLine(3, "Component " & i & " Input " & (inputIndex + 1) & " T Inter Period Seconds", If(AC(i).TInterPeriod Is Nothing, 0, AC(i).TInterPeriod(inputIndex)))
-                    WriteConfigLine(3, "Component " & i & " Input " & (inputIndex + 1) & " T TD Stimulus Type", If(AC(i).TStimD Is Nothing, "None", AC(i).TStimD(inputIndex)))
-                    WriteConfigLine(3, "Component " & i & " Input " & (inputIndex + 1) & " T TDelta Stimulus Type", If(AC(i).TStimDelta Is Nothing, "None", AC(i).TStimDelta(inputIndex)))
-                    WriteConfigLine(3, "Component " & i & " Input " & (inputIndex + 1) & " Feedback Duration Seconds", AC(i).FeedbackDuration(inputIndex))
-                    WriteConfigLine(3, "Component " & i & " Input " & (inputIndex + 1) & " Feedback Type", AC(i).FeedbackType(inputIndex))
-                    WriteConfigLine(3, "Component " & i & " Input " & (inputIndex + 1) & " Delay Duration Seconds", AC(i).DelayDuration(inputIndex))
-                    WriteConfigLine(3, "Component " & i & " Input " & (inputIndex + 1) & " Delay Type", AC(i).DelayType(inputIndex))
-                    WriteConfigLine(3, "Component " & i & " Input " & (inputIndex + 1) & " Delay Retract", AC(i).DelayRetract(inputIndex))
-                    WriteConfigLine(3, "Component " & i & " Input " & (inputIndex + 1) & " Delay Signal Duration Seconds", AC(i).DelaySignalDuration(inputIndex))
-                Next
-            Next
+            WriteConfigurationSnapshot(3, True)
             FileClose(3)
         Else
             MessageBox.Show("Nothing to save.")
@@ -590,6 +451,8 @@
             Dim previousRandom As Boolean = CheckBox1.Checked
             Dim previousOrder As String = txbComponentOrder.Text
             Dim previousCOM As String = txtCOM.Text
+            Dim previousLeverLetters As String = LeverCommandLetters
+            Dim loadedLeverLetters As String = DefaultLeverCommandLetters
             Dim fileReader As System.IO.TextReader = Nothing
 
             Try
@@ -611,6 +474,13 @@
                 Dim startDelayLine As String = fileReader.ReadLine()
                 If ConfigLineStartsWith(startDelayLine, "COM Port") Then
                     txtCOM.Text = ConfigValueFromLine(startDelayLine).Replace("""", "")
+                    startDelayLine = fileReader.ReadLine()
+                End If
+
+                If ConfigLineStartsWith(startDelayLine, "Lever Command Letters") Then
+                    loadedLeverLetters = ConfigValueFromLine(startDelayLine)
+                    Dim commandError As String = LeverCommandValidationError(loadedLeverLetters)
+                    If commandError <> "" Then Throw New System.IO.InvalidDataException(commandError)
                     startDelayLine = fileReader.ReadLine()
                 End If
 
@@ -800,6 +670,8 @@
                     CheckBox1.Enabled = True
                     CheckBox1.Checked = True
                 End If
+                ConfigureLeverCommands(loadedLeverLetters)
+                TestsPerformed = False
 
             Catch ex As Exception
                 RestoreComponents(previousComponents)
@@ -812,6 +684,7 @@
                 CheckBox1.Checked = previousRandom
                 txbComponentOrder.Text = previousOrder
                 txtCOM.Text = previousCOM
+                ConfigureLeverCommands(previousLeverLetters)
                 UpdateICIState()
                 UpdateComponentOrderState()
                 RefreshComponentSummaryTable()

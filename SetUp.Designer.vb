@@ -46,6 +46,7 @@ Partial Class SetUp
         Me.chkICIRetractInputs = New System.Windows.Forms.CheckBox()
         Me.lblICIDuration = New System.Windows.Forms.Label()
         Me.btnTests = New System.Windows.Forms.Button()
+        Me.btnLeverCommands = New System.Windows.Forms.Button()
         Me.btnSave = New System.Windows.Forms.Button()
         Me.btnLoad = New System.Windows.Forms.Button()
         Me.Label2 = New System.Windows.Forms.Label()
@@ -392,6 +393,15 @@ Partial Class SetUp
         Me.btnLoad.Text = "Load"
         Me.btnLoad.UseVisualStyleBackColor = True
         '
+        'btnLeverCommands
+        '
+        Me.btnLeverCommands.Location = New System.Drawing.Point(142, 12)
+        Me.btnLeverCommands.Name = "btnLeverCommands"
+        Me.btnLeverCommands.Size = New System.Drawing.Size(140, 40)
+        Me.btnLeverCommands.TabIndex = 27
+        Me.btnLeverCommands.Text = "Lever commands"
+        Me.btnLeverCommands.UseVisualStyleBackColor = True
+        '
         'btnAuthorInfo
         '
         Me.btnAuthorInfo.Location = New System.Drawing.Point(16, 442)
@@ -423,6 +433,7 @@ Partial Class SetUp
         Me.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font
         Me.ClientSize = New System.Drawing.Size(930, 484)
         Me.Controls.Add(Me.Label18)
+        Me.Controls.Add(Me.btnLeverCommands)
         Me.Controls.Add(Me.dgvComponentSummary)
         Me.Controls.Add(Me.grpICI)
         Me.Controls.Add(Me.chkICIEnabled)
@@ -479,6 +490,7 @@ Partial Class SetUp
     Friend WithEvents CheckBox1 As CheckBox
     Friend WithEvents txbComponentOrder As TextBox
     Friend WithEvents btnTests As Button
+    Friend WithEvents btnLeverCommands As Button
     Friend WithEvents btnSave As Button
     Friend WithEvents btnLoad As Button
     Friend WithEvents Label2 As Label
