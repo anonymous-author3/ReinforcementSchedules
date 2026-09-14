@@ -3,7 +3,6 @@ Imports System.Globalization
 
 Partial Public Class ChamberSession
     Private ReadOnly configuration As ChamberConfiguration
-    Private WithEvents acquisitionTimer As New Timer With {.Interval = 10}
     Private serialBuffer As String = ""
     Private rawWriter As StreamWriter
     Private summaryWriter As StreamWriter
@@ -13,7 +12,7 @@ Partial Public Class ChamberSession
     Private currentStatus As String = "Ready"
 
     Public Sub New(settings As ChamberConfiguration)
-        InitializeComponent()
+        Me.New()
         configuration = settings.Copy()
         AC = configuration.Components
         MAXvCC = CByte(configuration.ComponentCount)
@@ -27,9 +26,8 @@ Partial Public Class ChamberSession
             Actual_Response(i) = "1"
             Previous_Response(i) = "1"
         Next
-        TopLevel = False
-        FormBorderStyle = FormBorderStyle.None
-        Dock = DockStyle.Fill
+        lblBoxTitle.Text = configuration.BoxName & " · " & configuration.ComPort & " · " &
+            configuration.Subject & " — Cumulative record"
         EnsureInputRuntime()
         RefreshMainTables("Ready")
     End Sub
@@ -274,6 +272,7 @@ Partial Public Class ChamberSession
     End Sub
 
     Private Sub DisposeRuntime(sender As Object, e As EventArgs) Handles MyBase.Disposed
+        If configuration Is Nothing Then Return
         StopRuntimeTimers()
         CloseConnection()
         FileClose(1)
@@ -288,9 +287,5 @@ Partial Public Class ChamberSession
                 If timer IsNot Nothing Then timer.Dispose()
             Next
         Next
-    End Sub
-
-    Private Sub SessionSizeChanged(sender As Object, e As EventArgs) Handles MyBase.SizeChanged
-        If configuration IsNot Nothing AndAlso pnlManualControls IsNot Nothing Then ConfigureMainLayout()
     End Sub
 End Class

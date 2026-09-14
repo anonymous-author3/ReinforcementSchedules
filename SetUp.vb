@@ -1,22 +1,17 @@
 Public Class SetUp
     Private ReadOnly SetUpToolTip As New ToolTip()
 
-    Private Sub WriteConfigLine(fileNumber As Integer, label As String, value As Object)
-        WriteLine(fileNumber, label & ": " & CStr(value))
-    End Sub
-
     Private Sub AppendConfigLine(lines As List(Of String), label As String, value As Object)
         lines.Add(label & ": " & CStr(value))
     End Sub
 
-    Private Sub WriteConfigurationSnapshot(fileNumber As Integer, includeSavedAt As Boolean)
-        For Each line As String In ConfigurationSnapshotLines(includeSavedAt)
-            WriteLine(fileNumber, line)
-        Next
-    End Sub
     Private Function ConfigurationSnapshotLines(includeSavedAt As Boolean) As String()
         Dim lines As New List(Of String)()
         If includeSavedAt Then AppendConfigLine(lines, "Saved At", Format(Date.Now, "dd-MM-yyyy_hh-mm-ss"))
+        AppendConfigLine(lines, "Box Name", txtBoxName.Text)
+        AppendConfigLine(lines, "Subject", txtSubject.Text)
+        AppendConfigLine(lines, "Session", txtSession.Text)
+        AppendConfigLine(lines, "Weight", txtWeight.Text)
         AppendConfigLine(lines, "Component Count", vCC)
         AppendConfigLine(lines, "COM Port", txtCOM.Text)
         AppendConfigLine(lines, "Lever Command Letters", LeverCommandLetters)
@@ -169,10 +164,10 @@ Public Class SetUp
 
     Private Sub UpdateComponentOrderState()
         txbComponentOrder.Enabled = CheckBox1.Checked = False
-        If CheckBox1.Checked Then txbComponentOrder.Text = ""
     End Sub
 
     Public Function ManualComponentSequence() As List(Of Integer)
+        If CheckBox1.Checked Then Return Nothing
         Dim sequenceText As String = If(txbComponentOrder.Text, "").Trim()
         If sequenceText = "" Then Return Nothing
 
@@ -197,6 +192,7 @@ Public Class SetUp
     End Function
 
     Private Function ManualComponentSequenceValidationError() As String
+        If CheckBox1.Checked Then Return ""
         If If(txbComponentOrder.Text, "").Trim() = "" Then Return ""
 
         Dim sequence As List(Of Integer) = ManualComponentSequence()
@@ -374,6 +370,8 @@ Public Class SetUp
         SetUpToolTip.SetToolTip(txbStart, "Pre-session period in seconds before the first component starts, useful for habituation.")
         SetUpToolTip.SetToolTip(txbPostSession, "Post-session period in seconds after the session ends, useful as a resting period.")
         SetUpToolTip.SetToolTip(txbComponentOrder, "Optional explicit component order, e.g., 1,2,1,3. Leave blank to use the order components were added.")
+        SetUpToolTip.SetToolTip(btnSave, "Save program settings and lever commands. Subject, session, weight and COM are entered separately for each box.")
+        SetUpToolTip.SetToolTip(btnLoad, "Restore a complete setup, then use Add box for each box you want to configure.")
         SetUpToolTip.SetToolTip(btnLeverCommands, "Set the Arduino letter for each input. Sessions, manual controls, and tests use these same letters.")
         UpdateICIState()
         UpdateComponentOrderState()
@@ -421,231 +419,177 @@ Public Class SetUp
         End Using
     End Sub
 
-    Private Sub btnSave_Click(sender As Object, e As EventArgs) Handles btnSave.Click
-        If vCC > 0 Then
-            vFile(2) = "C:\SavedPrograms\NewProgram(Rename me please)_" & Strings.Right(CStr(Environment.TickCount), 5) & ".txt"
-            FileOpen(3, vFile(2), OpenMode.Append)
-            WriteConfigurationSnapshot(3, True)
-            FileClose(3)
-        Else
-            MessageBox.Show("Nothing to save.")
-        End If
-    End Sub
+    Private Sub LoadLegacyConfiguration(filePath As String)
+        Dim loadedLeverLetters As String = DefaultLeverCommandLetters
+        Using fileReader As New System.IO.StreamReader(filePath)
+            ReadConfigValue(fileReader)
 
-    Private Sub btnLoad_Click(sender As Object, e As EventArgs) Handles btnLoad.Click
-        Dim fd As OpenFileDialog = New OpenFileDialog()
-        fd.Title = "Select Macro"
-        fd.InitialDirectory = "C:\SavedPrograms\"
-        fd.Filter = "Text files (*.txt)|*.txt"
-        fd.FilterIndex = 1
-        fd.RestoreDirectory = False
-
-        If fd.ShowDialog() = DialogResult.OK Then
-            Dim previousComponents() As ComponentBlueprint = SnapshotComponents()
-            Dim previousVCC As Byte = vCC
-            Dim previousStart As String = txbStart.Text
-            Dim previousPostSession As String = txbPostSession.Text
-            Dim previousICI As String = txbICI.Text
-            Dim previousICIEnabled As Boolean = chkICIEnabled.Checked
-            Dim previousICIRetract As Boolean = chkICIRetractInputs.Checked
-            Dim previousRandom As Boolean = CheckBox1.Checked
-            Dim previousOrder As String = txbComponentOrder.Text
-            Dim previousCOM As String = txtCOM.Text
-            Dim previousLeverLetters As String = LeverCommandLetters
-            Dim loadedLeverLetters As String = DefaultLeverCommandLetters
-            Dim fileReader As System.IO.TextReader = Nothing
-
-            Try
-                vFile(3) = fd.FileName
-                fileReader = My.Computer.FileSystem.OpenTextFileReader(vFile(3))
-                Dim stringReader = ReadConfigValue(fileReader)
-
-                Dim componentCountLine As String = fileReader.ReadLine()
-                If ConfigLineStartsWith(componentCountLine, "Subject") Then
-                    ReadConfigValue(fileReader)
-                    ReadConfigValue(fileReader)
-                    ReadConfigValue(fileReader)
-                    componentCountLine = fileReader.ReadLine()
-                End If
-
-                vCC = ConfigValueFromLine(componentCountLine)
-                If vCC <= 0 OrElse vCC > MAX_COMPONENTS Then Throw New System.IO.InvalidDataException("Unsupported component count.")
-
-                Dim startDelayLine As String = fileReader.ReadLine()
-                If ConfigLineStartsWith(startDelayLine, "COM Port") Then
-                    txtCOM.Text = ConfigValueFromLine(startDelayLine).Replace("""", "")
-                    startDelayLine = fileReader.ReadLine()
-                End If
-
-                If ConfigLineStartsWith(startDelayLine, "Lever Command Letters") Then
-                    loadedLeverLetters = ConfigValueFromLine(startDelayLine)
-                    Dim commandError As String = LeverCommandValidationError(loadedLeverLetters)
-                    If commandError <> "" Then Throw New System.IO.InvalidDataException(commandError)
-                    startDelayLine = fileReader.ReadLine()
-                End If
-
-                txbStart.Text = ConfigValueFromLine(startDelayLine).Replace("""", "")
-                txbPostSession.Text = ReadConfigValue(fileReader).Replace("""", "")
-                txbICI.Text = ReadConfigValue(fileReader).Replace("""", "")
-
-                Dim nextConfigLine As String = fileReader.ReadLine()
-                If ConfigLineStartsWith(nextConfigLine, "Inter Component Interval Enabled") Then
-                    chkICIEnabled.Checked = BoolFromConfig(ConfigValueFromLine(nextConfigLine))
-                    chkICIRetractInputs.Checked = BoolFromConfig(ReadConfigValue(fileReader))
-                    ApplyICIStimulusType(ReadConfigValue(fileReader).Replace("""", ""))
-                    CheckBox1.Checked = BoolFromConfig(ReadConfigValue(fileReader))
+            Dim componentCountLine As String = fileReader.ReadLine()
+            Do
+                If ConfigLineStartsWith(componentCountLine, "Box Name") Then
+                    txtBoxName.Text = ConfigValueFromLine(componentCountLine)
+                ElseIf ConfigLineStartsWith(componentCountLine, "Subject") OrElse
+                    ConfigLineStartsWith(componentCountLine, "Session") OrElse
+                    ConfigLineStartsWith(componentCountLine, "Weight") OrElse
+                    ConfigLineStartsWith(componentCountLine, "COM Port") OrElse ConfigLineStartsWith(componentCountLine, "COM:") Then
+                    'Skip per-box details from older saves without changing the current entries.
                 Else
-                    chkICIEnabled.Checked = IntFromText(txbICI.Text, 0) > 0
-                    chkICIRetractInputs.Checked = True
-                    ApplyICIStimulusType("None")
-                    CheckBox1.Checked = BoolFromConfig(ConfigValueFromLine(nextConfigLine))
+                    Exit Do
                 End If
+                componentCountLine = fileReader.ReadLine()
+            Loop
 
-                Dim firstComponentLine As String = fileReader.ReadLine()
-                If ConfigLineStartsWith(firstComponentLine, "Component Presentation Order") Then
-                    txbComponentOrder.Text = ConfigValueFromLine(firstComponentLine).Replace("""", "")
-                    firstComponentLine = Nothing
+            vCC = ConfigValueFromLine(componentCountLine)
+            If vCC <= 0 OrElse vCC > MAX_COMPONENTS Then Throw New System.IO.InvalidDataException("Unsupported component count.")
+
+            Dim startDelayLine As String = fileReader.ReadLine()
+            If ConfigLineStartsWith(startDelayLine, "COM Port") Then
+                startDelayLine = fileReader.ReadLine()
+            End If
+
+            If ConfigLineStartsWith(startDelayLine, "Lever Command Letters") Then
+                loadedLeverLetters = ConfigValueFromLine(startDelayLine)
+                Dim commandError As String = LeverCommandValidationError(loadedLeverLetters)
+                If commandError <> "" Then Throw New System.IO.InvalidDataException(commandError)
+                startDelayLine = fileReader.ReadLine()
+            End If
+
+            txbStart.Text = ConfigValueFromLine(startDelayLine).Replace("""", "")
+            txbPostSession.Text = ReadConfigValue(fileReader).Replace("""", "")
+            txbICI.Text = ReadConfigValue(fileReader).Replace("""", "")
+
+            Dim nextConfigLine As String = fileReader.ReadLine()
+            If ConfigLineStartsWith(nextConfigLine, "Inter Component Interval Enabled") Then
+                chkICIEnabled.Checked = BoolFromConfig(ConfigValueFromLine(nextConfigLine))
+                chkICIRetractInputs.Checked = BoolFromConfig(ReadConfigValue(fileReader))
+                ApplyICIStimulusType(ReadConfigValue(fileReader).Replace("""", ""))
+                CheckBox1.Checked = BoolFromConfig(ReadConfigValue(fileReader))
+            Else
+                chkICIEnabled.Checked = IntFromText(txbICI.Text, 0) > 0
+                chkICIRetractInputs.Checked = True
+                ApplyICIStimulusType("None")
+                CheckBox1.Checked = BoolFromConfig(ConfigValueFromLine(nextConfigLine))
+            End If
+
+            Dim firstComponentLine As String = fileReader.ReadLine()
+            If ConfigLineStartsWith(firstComponentLine, "Component Presentation Order") Then
+                txbComponentOrder.Text = ConfigValueFromLine(firstComponentLine).Replace("""", "")
+                firstComponentLine = Nothing
+            Else
+                txbComponentOrder.Text = ""
+            End If
+
+            UpdateICIState()
+            UpdateComponentOrderState()
+            For i = 1 To vCC
+                ReDim AC(i).InputName(MAX_INPUTS - 1)
+                ReDim AC(i).ScheduleType(MAX_INPUTS - 1)
+                ReDim AC(i).ScheduleValue(MAX_INPUTS - 1)
+                ReDim AC(i).Magnitude(MAX_INPUTS - 1)
+                ReDim AC(i).Reinforcer(MAX_INPUTS - 1)
+                ReDim AC(i).DeliveryP(MAX_INPUTS - 1)
+                ReDim AC(i).PelletP(MAX_INPUTS - 1)
+                ReDim AC(i).TDurationD(MAX_INPUTS - 1)
+                ReDim AC(i).TDurationDelta(MAX_INPUTS - 1)
+                ReDim AC(i).TProbabilityD(MAX_INPUTS - 1)
+                ReDim AC(i).TProbabilityDelta(MAX_INPUTS - 1)
+                ReDim AC(i).TCycles(MAX_INPUTS - 1)
+                ReDim AC(i).TStartPeriod(MAX_INPUTS - 1)
+                ReDim AC(i).TInterPeriod(MAX_INPUTS - 1)
+                ReDim AC(i).TStimD(MAX_INPUTS - 1)
+                ReDim AC(i).TStimDelta(MAX_INPUTS - 1)
+                ReDim AC(i).FeedbackDuration(MAX_INPUTS - 1)
+                ReDim AC(i).FeedbackType(MAX_INPUTS - 1)
+                ReDim AC(i).DelayDuration(MAX_INPUTS - 1)
+                ReDim AC(i).DelayType(MAX_INPUTS - 1)
+                ReDim AC(i).DelayRetract(MAX_INPUTS - 1)
+                ReDim AC(i).DelaySignalDuration(MAX_INPUTS - 1)
+                '
+                If i = 1 AndAlso firstComponentLine IsNot Nothing Then
+                    AC(i).HouselightOnOff = ConfigValueFromLine(firstComponentLine).Replace("#", "")
                 Else
-                    txbComponentOrder.Text = ""
+                    AC(i).HouselightOnOff = ReadConfigValue(fileReader).Replace("#", "")
+                End If
+                AC(i).COD = ReadConfigValue(fileReader)
+                AC(i).MaxRefs = ReadConfigValue(fileReader)
+                AC(i).ComponentName = ReadConfigValue(fileReader).Replace("""", "")
+                AC(i).ComponentDuration = ReadConfigValue(fileReader)
+                AC(i).ComponentIteration = ReadConfigValue(fileReader)
+                Dim componentStimLine As String = fileReader.ReadLine()
+                If ConfigLineStartsWith(componentStimLine, "Component " & i & " Light Intermittency Seconds") Then
+                    AC(i).ComponentLightIntermittency = ConfigValueFromLine(componentStimLine)
+                    AC(i).ComponentStimDuration = ReadConfigValue(fileReader)
+                    AC(i).ComponentStimType = ReadConfigValue(fileReader).Replace("""", "")
+                Else
+                    AC(i).ComponentLightIntermittency = 0
+                    AC(i).ComponentStimDuration = ConfigValueFromLine(componentStimLine)
+                    AC(i).ComponentStimType = ReadConfigValue(fileReader).Replace("""", "")
+                End If
+                Dim inputCountLine As String = fileReader.ReadLine()
+                If ConfigLineStartsWith(inputCountLine, "Component " & i & " Time Schedule Type") Then
+                    AC(i).TimeScheduleType = ConfigValueFromLine(inputCountLine).Replace("""", "")
+                    AC(i).TimeScheduleValue = ReadConfigValue(fileReader)
+                    AC(i).TimeMagnitude = ReadConfigValue(fileReader)
+                    AC(i).TimeReinforcer = ReadConfigValue(fileReader).Replace("""", "")
+                    AC(i).TimeDeliveryP = ReadConfigValue(fileReader)
+                    AC(i).TimePelletP = ReadConfigValue(fileReader)
+                    inputCountLine = fileReader.ReadLine()
+                Else
+                    AC(i).TimeScheduleType = "None"
+                    AC(i).TimeScheduleValue = 0
+                    AC(i).TimeMagnitude = 0
+                    AC(i).TimeReinforcer = "N/A"
+                    AC(i).TimeDeliveryP = 0
+                    AC(i).TimePelletP = 0
                 End If
 
-                UpdateICIState()
-                UpdateComponentOrderState()
-                For i = 1 To vCC
-                    ReDim AC(i).InputName(MAX_INPUTS - 1)
-                    ReDim AC(i).ScheduleType(MAX_INPUTS - 1)
-                    ReDim AC(i).ScheduleValue(MAX_INPUTS - 1)
-                    ReDim AC(i).Magnitude(MAX_INPUTS - 1)
-                    ReDim AC(i).Reinforcer(MAX_INPUTS - 1)
-                    ReDim AC(i).DeliveryP(MAX_INPUTS - 1)
-                    ReDim AC(i).PelletP(MAX_INPUTS - 1)
-                    ReDim AC(i).TDurationD(MAX_INPUTS - 1)
-                    ReDim AC(i).TDurationDelta(MAX_INPUTS - 1)
-                    ReDim AC(i).TProbabilityD(MAX_INPUTS - 1)
-                    ReDim AC(i).TProbabilityDelta(MAX_INPUTS - 1)
-                    ReDim AC(i).TCycles(MAX_INPUTS - 1)
-                    ReDim AC(i).TStartPeriod(MAX_INPUTS - 1)
-                    ReDim AC(i).TInterPeriod(MAX_INPUTS - 1)
-                    ReDim AC(i).TStimD(MAX_INPUTS - 1)
-                    ReDim AC(i).TStimDelta(MAX_INPUTS - 1)
-                    ReDim AC(i).FeedbackDuration(MAX_INPUTS - 1)
-                    ReDim AC(i).FeedbackType(MAX_INPUTS - 1)
-                    ReDim AC(i).DelayDuration(MAX_INPUTS - 1)
-                    ReDim AC(i).DelayType(MAX_INPUTS - 1)
-                    ReDim AC(i).DelayRetract(MAX_INPUTS - 1)
-                    ReDim AC(i).DelaySignalDuration(MAX_INPUTS - 1)
-                    '
-                    If i = 1 AndAlso firstComponentLine IsNot Nothing Then
-                        AC(i).HouselightOnOff = ConfigValueFromLine(firstComponentLine).Replace("#", "")
+                AC(i).InputCount = ConfigValueFromLine(inputCountLine)
+                If AC(i).InputCount <= 0 Then AC(i).InputCount = 2
+                If AC(i).InputCount > MAX_INPUTS Then AC(i).InputCount = MAX_INPUTS
+
+                For inputIndex As Integer = 0 To AC(i).InputCount - 1
+                    AC(i).InputName(inputIndex) = ReadConfigValue(fileReader).Replace("""", "")
+                    AC(i).ScheduleType(inputIndex) = ReadConfigValue(fileReader).Replace("""", "")
+                    Dim scheduleValueText As String = ReadConfigValue(fileReader)
+                    Dim magnitudeText As String = ReadConfigValue(fileReader)
+                    Dim reinforcerText As String = ReadConfigValue(fileReader).Replace("""", "")
+                    Dim deliveryOrPelletLine As String = fileReader.ReadLine()
+                    Dim deliveryPText As String = "100"
+                    Dim pelletPText As String
+                    If ConfigLineStartsWith(deliveryOrPelletLine, "Component " & i & " Input " & (inputIndex + 1) & " Reinforcer Delivery Probability") Then
+                        deliveryPText = ConfigValueFromLine(deliveryOrPelletLine)
+                        pelletPText = ReadConfigValue(fileReader)
                     Else
-                        AC(i).HouselightOnOff = ReadConfigValue(fileReader).Replace("#", "")
-                    End If
-                    AC(i).COD = ReadConfigValue(fileReader)
-                    AC(i).MaxRefs = ReadConfigValue(fileReader)
-                    AC(i).ComponentName = ReadConfigValue(fileReader).Replace("""", "")
-                    AC(i).ComponentDuration = ReadConfigValue(fileReader)
-                    AC(i).ComponentIteration = ReadConfigValue(fileReader)
-                    Dim componentStimLine As String = fileReader.ReadLine()
-                    If ConfigLineStartsWith(componentStimLine, "Component " & i & " Light Intermittency Seconds") Then
-                        AC(i).ComponentLightIntermittency = ConfigValueFromLine(componentStimLine)
-                        AC(i).ComponentStimDuration = ReadConfigValue(fileReader)
-                        AC(i).ComponentStimType = ReadConfigValue(fileReader).Replace("""", "")
-                    Else
-                        AC(i).ComponentLightIntermittency = 0
-                        AC(i).ComponentStimDuration = ConfigValueFromLine(componentStimLine)
-                        AC(i).ComponentStimType = ReadConfigValue(fileReader).Replace("""", "")
-                    End If
-                    Dim inputCountLine As String = fileReader.ReadLine()
-                    If ConfigLineStartsWith(inputCountLine, "Component " & i & " Time Schedule Type") Then
-                        AC(i).TimeScheduleType = ConfigValueFromLine(inputCountLine).Replace("""", "")
-                        AC(i).TimeScheduleValue = ReadConfigValue(fileReader)
-                        AC(i).TimeMagnitude = ReadConfigValue(fileReader)
-                        AC(i).TimeReinforcer = ReadConfigValue(fileReader).Replace("""", "")
-                        AC(i).TimeDeliveryP = ReadConfigValue(fileReader)
-                        AC(i).TimePelletP = ReadConfigValue(fileReader)
-                        inputCountLine = fileReader.ReadLine()
-                    Else
-                        AC(i).TimeScheduleType = "None"
-                        AC(i).TimeScheduleValue = 0
-                        AC(i).TimeMagnitude = 0
-                        AC(i).TimeReinforcer = "N/A"
-                        AC(i).TimeDeliveryP = 0
-                        AC(i).TimePelletP = 0
+                        pelletPText = ConfigValueFromLine(deliveryOrPelletLine)
                     End If
 
-                    AC(i).InputCount = ConfigValueFromLine(inputCountLine)
-                    If AC(i).InputCount <= 0 Then AC(i).InputCount = 2
-                    If AC(i).InputCount > MAX_INPUTS Then AC(i).InputCount = MAX_INPUTS
-
-                    For inputIndex As Integer = 0 To AC(i).InputCount - 1
-                        AC(i).InputName(inputIndex) = ReadConfigValue(fileReader).Replace("""", "")
-                        AC(i).ScheduleType(inputIndex) = ReadConfigValue(fileReader).Replace("""", "")
-                        Dim scheduleValueText As String = ReadConfigValue(fileReader)
-                        Dim magnitudeText As String = ReadConfigValue(fileReader)
-                        Dim reinforcerText As String = ReadConfigValue(fileReader).Replace("""", "")
-                        Dim deliveryOrPelletLine As String = fileReader.ReadLine()
-                        Dim deliveryPText As String = "100"
-                        Dim pelletPText As String
-                        If ConfigLineStartsWith(deliveryOrPelletLine, "Component " & i & " Input " & (inputIndex + 1) & " Reinforcer Delivery Probability") Then
-                            deliveryPText = ConfigValueFromLine(deliveryOrPelletLine)
-                            pelletPText = ReadConfigValue(fileReader)
-                        Else
-                            pelletPText = ConfigValueFromLine(deliveryOrPelletLine)
-                        End If
-
-                        If AC(i).ScheduleType(inputIndex) = "Extinction" OrElse AC(i).ScheduleType(inputIndex) = "N/A" Then
-                            AC(i).ScheduleValue(inputIndex) = 0
-                            AC(i).Magnitude(inputIndex) = 0
-                            AC(i).Reinforcer(inputIndex) = "N/A"
-                            AC(i).DeliveryP(inputIndex) = 0
-                            AC(i).PelletP(inputIndex) = 0
-                        Else
-                            AC(i).ScheduleValue(inputIndex) = scheduleValueText
-                            AC(i).Magnitude(inputIndex) = magnitudeText
-                            AC(i).Reinforcer(inputIndex) = reinforcerText
-                            AC(i).DeliveryP(inputIndex) = deliveryPText
-                            AC(i).PelletP(inputIndex) = pelletPText
-                        End If
-
-                        Dim feedbackDurationLine As String = fileReader.ReadLine()
-                        If ConfigLineStartsWith(feedbackDurationLine, "Component " & i & " Input " & (inputIndex + 1) & " T TD Seconds") Then
-                            AC(i).TDurationD(inputIndex) = ConfigValueFromLine(feedbackDurationLine)
-                            AC(i).TDurationDelta(inputIndex) = ReadConfigValue(fileReader)
-                            AC(i).TProbabilityD(inputIndex) = ReadConfigValue(fileReader)
-                            AC(i).TProbabilityDelta(inputIndex) = ReadConfigValue(fileReader)
-                            AC(i).TCycles(inputIndex) = ReadConfigValue(fileReader)
-                            AC(i).TStartPeriod(inputIndex) = ReadConfigValue(fileReader).Replace("""", "")
-                            AC(i).TInterPeriod(inputIndex) = ReadConfigValue(fileReader)
-                            AC(i).TStimD(inputIndex) = ReadConfigValue(fileReader).Replace("""", "")
-                            AC(i).TStimDelta(inputIndex) = ReadConfigValue(fileReader).Replace("""", "")
-                            AC(i).FeedbackDuration(inputIndex) = ReadConfigValue(fileReader)
-                        Else
-                            AC(i).TDurationD(inputIndex) = 0
-                            AC(i).TDurationDelta(inputIndex) = 0
-                            AC(i).TProbabilityD(inputIndex) = 100
-                            AC(i).TProbabilityDelta(inputIndex) = 0
-                            AC(i).TCycles(inputIndex) = 0
-                            AC(i).TStartPeriod(inputIndex) = "TD"
-                            AC(i).TInterPeriod(inputIndex) = 0
-                            AC(i).TStimD(inputIndex) = "None"
-                            AC(i).TStimDelta(inputIndex) = "None"
-                            AC(i).FeedbackDuration(inputIndex) = ConfigValueFromLine(feedbackDurationLine)
-                        End If
-                        AC(i).FeedbackType(inputIndex) = ReadConfigValue(fileReader).Replace("""", "")
-                        AC(i).DelayDuration(inputIndex) = ReadConfigValue(fileReader)
-                        AC(i).DelayType(inputIndex) = ReadConfigValue(fileReader).Replace("""", "")
-                        AC(i).DelayRetract(inputIndex) = ReadConfigValue(fileReader).Replace("#", "")
-                        AC(i).DelaySignalDuration(inputIndex) = ReadConfigValue(fileReader)
-                    Next
-
-                    For inputIndex As Integer = AC(i).InputCount To MAX_INPUTS - 1
-                        AC(i).InputName(inputIndex) = ""
-                        AC(i).ScheduleType(inputIndex) = "Extinction"
+                    If AC(i).ScheduleType(inputIndex) = "Extinction" OrElse AC(i).ScheduleType(inputIndex) = "N/A" Then
                         AC(i).ScheduleValue(inputIndex) = 0
                         AC(i).Magnitude(inputIndex) = 0
-                        AC(i).Reinforcer(inputIndex) = "Pellet"
+                        AC(i).Reinforcer(inputIndex) = "N/A"
                         AC(i).DeliveryP(inputIndex) = 0
                         AC(i).PelletP(inputIndex) = 0
+                    Else
+                        AC(i).ScheduleValue(inputIndex) = scheduleValueText
+                        AC(i).Magnitude(inputIndex) = magnitudeText
+                        AC(i).Reinforcer(inputIndex) = reinforcerText
+                        AC(i).DeliveryP(inputIndex) = deliveryPText
+                        AC(i).PelletP(inputIndex) = pelletPText
+                    End If
+
+                    Dim feedbackDurationLine As String = fileReader.ReadLine()
+                    If ConfigLineStartsWith(feedbackDurationLine, "Component " & i & " Input " & (inputIndex + 1) & " T TD Seconds") Then
+                        AC(i).TDurationD(inputIndex) = ConfigValueFromLine(feedbackDurationLine)
+                        AC(i).TDurationDelta(inputIndex) = ReadConfigValue(fileReader)
+                        AC(i).TProbabilityD(inputIndex) = ReadConfigValue(fileReader)
+                        AC(i).TProbabilityDelta(inputIndex) = ReadConfigValue(fileReader)
+                        AC(i).TCycles(inputIndex) = ReadConfigValue(fileReader)
+                        AC(i).TStartPeriod(inputIndex) = ReadConfigValue(fileReader).Replace("""", "")
+                        AC(i).TInterPeriod(inputIndex) = ReadConfigValue(fileReader)
+                        AC(i).TStimD(inputIndex) = ReadConfigValue(fileReader).Replace("""", "")
+                        AC(i).TStimDelta(inputIndex) = ReadConfigValue(fileReader).Replace("""", "")
+                        AC(i).FeedbackDuration(inputIndex) = ReadConfigValue(fileReader)
+                    Else
                         AC(i).TDurationD(inputIndex) = 0
                         AC(i).TDurationDelta(inputIndex) = 0
                         AC(i).TProbabilityD(inputIndex) = 100
@@ -655,45 +599,46 @@ Public Class SetUp
                         AC(i).TInterPeriod(inputIndex) = 0
                         AC(i).TStimD(inputIndex) = "None"
                         AC(i).TStimDelta(inputIndex) = "None"
-                        AC(i).FeedbackDuration(inputIndex) = 0
-                        AC(i).FeedbackType(inputIndex) = "None"
-                        AC(i).DelayDuration(inputIndex) = 0
-                        AC(i).DelayType(inputIndex) = "None"
-                        AC(i).DelayRetract(inputIndex) = False
-                        AC(i).DelaySignalDuration(inputIndex) = 0
-                    Next
-
+                        AC(i).FeedbackDuration(inputIndex) = ConfigValueFromLine(feedbackDurationLine)
+                    End If
+                    AC(i).FeedbackType(inputIndex) = ReadConfigValue(fileReader).Replace("""", "")
+                    AC(i).DelayDuration(inputIndex) = ReadConfigValue(fileReader)
+                    AC(i).DelayType(inputIndex) = ReadConfigValue(fileReader).Replace("""", "")
+                    AC(i).DelayRetract(inputIndex) = ReadConfigValue(fileReader).Replace("#", "")
+                    AC(i).DelaySignalDuration(inputIndex) = ReadConfigValue(fileReader)
                 Next
-                RefreshComponentSummaryTable()
 
-                If vCC >= 2 Then
-                    CheckBox1.Enabled = True
-                    CheckBox1.Checked = True
-                End If
-                ConfigureLeverCommands(loadedLeverLetters)
-                TestsPerformed = False
+                For inputIndex As Integer = AC(i).InputCount To MAX_INPUTS - 1
+                    AC(i).InputName(inputIndex) = ""
+                    AC(i).ScheduleType(inputIndex) = "Extinction"
+                    AC(i).ScheduleValue(inputIndex) = 0
+                    AC(i).Magnitude(inputIndex) = 0
+                    AC(i).Reinforcer(inputIndex) = "Pellet"
+                    AC(i).DeliveryP(inputIndex) = 0
+                    AC(i).PelletP(inputIndex) = 0
+                    AC(i).TDurationD(inputIndex) = 0
+                    AC(i).TDurationDelta(inputIndex) = 0
+                    AC(i).TProbabilityD(inputIndex) = 100
+                    AC(i).TProbabilityDelta(inputIndex) = 0
+                    AC(i).TCycles(inputIndex) = 0
+                    AC(i).TStartPeriod(inputIndex) = "TD"
+                    AC(i).TInterPeriod(inputIndex) = 0
+                    AC(i).TStimD(inputIndex) = "None"
+                    AC(i).TStimDelta(inputIndex) = "None"
+                    AC(i).FeedbackDuration(inputIndex) = 0
+                    AC(i).FeedbackType(inputIndex) = "None"
+                    AC(i).DelayDuration(inputIndex) = 0
+                    AC(i).DelayType(inputIndex) = "None"
+                    AC(i).DelayRetract(inputIndex) = False
+                    AC(i).DelaySignalDuration(inputIndex) = 0
+                Next
 
-            Catch ex As Exception
-                RestoreComponents(previousComponents)
-                vCC = previousVCC
-                txbStart.Text = previousStart
-                txbPostSession.Text = previousPostSession
-                txbICI.Text = previousICI
-                chkICIEnabled.Checked = previousICIEnabled
-                chkICIRetractInputs.Checked = previousICIRetract
-                CheckBox1.Checked = previousRandom
-                txbComponentOrder.Text = previousOrder
-                txtCOM.Text = previousCOM
-                ConfigureLeverCommands(previousLeverLetters)
-                UpdateICIState()
-                UpdateComponentOrderState()
-                RefreshComponentSummaryTable()
-                MessageBox.Show("This configuration file is not compatible with this version of the program.")
-            Finally
-                If fileReader IsNot Nothing Then fileReader.Close()
-            End Try
+            Next
+            RefreshComponentSummaryTable()
 
-        End If
+            CheckBox1.Enabled = vCC >= 2
+            ConfigureLeverCommands(loadedLeverLetters)
+        End Using
     End Sub
 
     Private Sub btnRemoveLast_Click(sender As Object, e As EventArgs) Handles btnRemoveLast.Click

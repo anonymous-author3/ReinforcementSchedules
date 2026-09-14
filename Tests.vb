@@ -9,13 +9,11 @@ Public Class Tests
     Private ReadOnly InputCountLabels(MAX_INPUTS - 1) As Label
     Private ReadOnly InputOutputButtons(MAX_INPUTS - 1) As Button
     Private ReadOnly InputOutputState(MAX_INPUTS - 1) As Boolean
-    Private WithEvents tmrChartTests As Timer = New Timer
     Private chrtTime As Integer
     Private pumpOn As Boolean
     Private lightsOn As Boolean
     Private closingTest As Boolean
     Private SimulationMode As Boolean = False
-    Private WithEvents acquisitionTimer As New Timer With {.Interval = 10}
     Private serialBuffer As String = ""
     Private ReadOnly Previous_Response() As String = Enumerable.Repeat("1", MAX_INPUTS).ToArray()
 
@@ -105,83 +103,34 @@ Public Class Tests
     End Function
 
     Private Sub ConfigureChart()
-        Chart1.Series.Clear()
-        Chart1.Location = New Point(520, 18)
-        Chart1.Size = New Size(575, 620)
-
         For inputIndex As Integer = 0 To MAX_INPUTS - 1
-            Dim series As New Series("Input " & (inputIndex + 1))
-            series.ChartArea = "ChartArea1"
-            series.ChartType = SeriesChartType.StepLine
-            series.Legend = "Legend1"
+            Dim series As Series = Chart1.Series("Input " & (inputIndex + 1))
+            series.Points.Clear()
             series.LegendText = TestInputName(inputIndex)
-            Chart1.Series.Add(series)
         Next
     End Sub
 
-    Private Sub ConfigureDynamicControls()
-        Me.ClientSize = New Size(1107, 655)
-        btnLights.Location = New Point(263, 18)
-        btnTone.Location = New Point(263, 108)
-        btnFeeder.Location = New Point(263, 198)
-        btnPumpOn.Location = New Point(263, 288)
-        btnClose.Location = New Point(263, 558)
-
-        Dim startX As Integer = 13
-        Dim y As Integer = 18
-
+    Private Sub BindInputControls()
+        Dim names As Label() = {lblInputName1, lblInputName2, lblInputName3, lblInputName4, lblInputName5, lblInputName6}
+        Dim values As Label() = {lblInputValue1, lblInputValue2, lblInputValue3, lblInputValue4, lblInputValue5, lblInputValue6}
+        Dim counts As Label() = {lblInputCount1, lblInputCount2, lblInputCount3, lblInputCount4, lblInputCount5, lblInputCount6}
+        Dim outputs As Button() = {btnInputOutput1, btnInputOutput2, btnInputOutput3, btnInputOutput4, btnInputOutput5, btnInputOutput6}
         For inputIndex As Integer = 0 To MAX_INPUTS - 1
-            Dim nameLabel As New Label()
-            nameLabel.AutoSize = False
-            nameLabel.Location = New Point(startX, y + (inputIndex * 36))
-            nameLabel.Size = New Size(110, 22)
-            nameLabel.Text = TestInputName(inputIndex) & ":"
-            Controls.Add(nameLabel)
-
-            Dim valueLabel As New Label()
-            valueLabel.AutoSize = False
-            valueLabel.BorderStyle = BorderStyle.FixedSingle
-            valueLabel.Location = New Point(startX + 115, y + (inputIndex * 36))
-            valueLabel.Size = New Size(45, 22)
-            valueLabel.Text = "-"
-            valueLabel.TextAlign = ContentAlignment.MiddleCenter
-            Controls.Add(valueLabel)
-            InputValueLabels(inputIndex) = valueLabel
-
-            Dim countLabel As New Label()
-            countLabel.AutoSize = False
-            countLabel.BorderStyle = BorderStyle.FixedSingle
-            countLabel.Location = New Point(startX + 165, y + (inputIndex * 36))
-            countLabel.Size = New Size(55, 22)
-            countLabel.Text = "0"
-            countLabel.TextAlign = ContentAlignment.MiddleCenter
-            Controls.Add(countLabel)
-            InputCountLabels(inputIndex) = countLabel
-        Next
-
-        Dim outputY As Integer = y + (MAX_INPUTS * 36) + 16
-        For inputIndex As Integer = 0 To MAX_INPUTS - 1
-            Dim outputButton As New Button()
-            outputButton.Location = New Point(startX, outputY + (inputIndex * 36))
-            outputButton.Size = New Size(230, 30)
-            outputButton.Tag = inputIndex
-
-            If InputOutputCommand(inputIndex, True) = "" Then
-                outputButton.Text = TestInputName(inputIndex) & " output N/A"
-                outputButton.Enabled = False
-            Else
-                outputButton.Text = TestInputName(inputIndex) & " output OFF"
-                AddHandler outputButton.Click, AddressOf btnInputOutput_Click
-            End If
-
-            Controls.Add(outputButton)
-            InputOutputButtons(inputIndex) = outputButton
+            names(inputIndex).Text = TestInputName(inputIndex) & ":"
+            InputValueLabels(inputIndex) = values(inputIndex)
+            InputCountLabels(inputIndex) = counts(inputIndex)
+            InputOutputButtons(inputIndex) = outputs(inputIndex)
+            Dim hasOutput As Boolean = InputOutputCommand(inputIndex, True) <> ""
+            outputs(inputIndex).Enabled = hasOutput
+            outputs(inputIndex).Text = TestInputName(inputIndex) & If(hasOutput, " output OFF", " output N/A")
         Next
     End Sub
 
     Private Sub Tests_Load(sender As Object, e As EventArgs) Handles MyBase.Load
+        If DesignMode OrElse System.ComponentModel.LicenseManager.UsageMode = System.ComponentModel.LicenseUsageMode.Designtime Then Return
         ConfigureChart()
-        ConfigureDynamicControls()
+        BindInputControls()
+        tmrStart.Start()
     End Sub
 
     Private Sub tmrStart_Tick(sender As Object, e As EventArgs) Handles tmrStart.Tick
@@ -207,7 +156,7 @@ Public Class Tests
         End If
     End Sub
 
-    Private Sub btnInputOutput_Click(sender As Object, e As EventArgs)
+    Private Sub btnInputOutput_Click(sender As Object, e As EventArgs) Handles btnInputOutput1.Click, btnInputOutput2.Click, btnInputOutput3.Click, btnInputOutput4.Click, btnInputOutput5.Click, btnInputOutput6.Click
         Dim outputButton As Button = DirectCast(sender, Button)
         Dim inputIndex As Integer = CInt(outputButton.Tag)
 

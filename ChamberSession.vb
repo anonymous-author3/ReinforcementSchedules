@@ -5,9 +5,6 @@ Imports System.Windows.Forms.DataVisualization.Charting
 Public Class ChamberSession
     Public Arduino As SerialPort
     Private SimulationMode As Boolean = False
-    Private WithEvents tmrChrt As Timer = New Timer
-    Private WithEvents tmrComponentLightStim As Timer = New Timer
-    Private WithEvents tmrTimeSchedule As Timer = New Timer
     Private CompSequence As List(Of Integer)
     Private CompIndexSeq As Integer
     Private TimeScheduleList As New List(Of Integer)
@@ -35,9 +32,11 @@ Public Class ChamberSession
     Private PostSessionEndTick As Integer = 0
     Private LastPostSessionSecond As Integer = Integer.MinValue
     Private ReadOnly SessionRandom As Random = New Random(CreateRandomSeed())
-    Private dgvMainSession As DataGridView
-    Private dgvMainInputs As DataGridView
-    Private pnlManualControls As FlowLayoutPanel
+
+    'Only builds the editable view. Session setup is in the configuration constructor.
+    Public Sub New()
+        InitializeComponent()
+    End Sub
 
     Private Shared Function CreateRandomSeed() As Integer
         Dim bytes(3) As Byte
@@ -87,37 +86,10 @@ Public Class ChamberSession
             End If
         Next
 
-        ConfigureMainLayout()
         EnsureChartSeries()
-        EnsureInputStatusControls()
     End Sub
 
-    Private Sub EnsureInputStatusControls()
-        For inputIndex As Integer = 0 To MAX_INPUTS - 1
-            EnsureSimulationButton(inputIndex)
-            EnsureInputOutputButton(inputIndex)
-            EnsureInputReinforcerButton(inputIndex)
-        Next
-    End Sub
-
-    Private Sub EnsureSimulationButton(inputIndex As Integer)
-        Dim controlName As String = "btnSimResponse" & (inputIndex + 1)
-        If pnlManualControls.Controls.ContainsKey(controlName) Then Exit Sub
-
-        Dim responseButton As New Button With {
-            .Name = controlName,
-            .Size = New Size(138, 28),
-            .Tag = inputIndex,
-            .Text = "Response " & (inputIndex + 1),
-            .UseVisualStyleBackColor = True
-        }
-
-        AddHandler responseButton.Click, AddressOf SimResponseButton_Click
-        pnlManualControls.Controls.Add(responseButton)
-        responseButton.Visible = False
-    End Sub
-
-    Private Sub SimResponseButton_Click(sender As Object, e As EventArgs)
+    Private Sub SimResponseButton_Click(sender As Object, e As EventArgs) Handles btnSimResponse1.Click, btnSimResponse2.Click, btnSimResponse3.Click, btnSimResponse4.Click, btnSimResponse5.Click, btnSimResponse6.Click
         If SessionClosed Then Return
         Try
             Dim inputIndex As Integer = CInt(DirectCast(sender, Button).Tag)
@@ -127,7 +99,7 @@ Public Class ChamberSession
         End Try
     End Sub
 
-    Private Sub InputOutputButton_Click(sender As Object, e As EventArgs)
+    Private Sub InputOutputButton_Click(sender As Object, e As EventArgs) Handles btnInputOutput1.Click, btnInputOutput2.Click, btnInputOutput3.Click, btnInputOutput4.Click, btnInputOutput5.Click, btnInputOutput6.Click
         If SessionClosed Then Return
         Try
             Dim inputIndex As Integer = CInt(DirectCast(sender, Button).Tag)
@@ -141,7 +113,7 @@ Public Class ChamberSession
         End Try
     End Sub
 
-    Private Sub InputReinforcerButton_Click(sender As Object, e As EventArgs)
+    Private Sub InputReinforcerButton_Click(sender As Object, e As EventArgs) Handles btnInputReinforcer1.Click, btnInputReinforcer2.Click, btnInputReinforcer3.Click, btnInputReinforcer4.Click, btnInputReinforcer5.Click, btnInputReinforcer6.Click
         If SessionClosed Then Return
         Try
             Dim inputIndex As Integer = CInt(DirectCast(sender, Button).Tag)
@@ -170,190 +142,13 @@ Public Class ChamberSession
         manualButton.Text = textValue
     End Sub
 
-    Private Sub EnsureInputOutputButton(inputIndex As Integer)
-        Dim controlName As String = "btnInputOutput" & (inputIndex + 1)
-        If pnlManualControls.Controls.ContainsKey(controlName) Then Exit Sub
-
-        Dim ioButton As New Button With {
-            .Name = controlName,
-            .Size = New Size(138, 28),
-            .Tag = inputIndex,
-            .Text = "In/Out " & (inputIndex + 1),
-            .UseVisualStyleBackColor = True
-        }
-
-        AddHandler ioButton.Click, AddressOf InputOutputButton_Click
-        pnlManualControls.Controls.Add(ioButton)
-        ioButton.Visible = False
-    End Sub
-
-    Private Sub EnsureInputReinforcerButton(inputIndex As Integer)
-        Dim controlName As String = "btnInputReinforcer" & (inputIndex + 1)
-        If pnlManualControls.Controls.ContainsKey(controlName) Then Exit Sub
-
-        Dim reinforcerButton As New Button With {
-            .Name = controlName,
-            .Size = New Size(138, 28),
-            .Tag = inputIndex,
-            .Text = "Rf " & (inputIndex + 1),
-            .UseVisualStyleBackColor = True
-        }
-
-        AddHandler reinforcerButton.Click, AddressOf InputReinforcerButton_Click
-        pnlManualControls.Controls.Add(reinforcerButton)
-        reinforcerButton.Visible = False
-    End Sub
-
-    Private Sub ConfigureMainLayout()
-        Dim margin As Integer = 8
-        Dim gap As Integer = 8
-        Dim tableWidth As Integer = Math.Max(300, CInt((Me.ClientSize.Width - (margin * 2) - gap) / 2))
-        Dim tableHeight As Integer = 180
-        Dim chartTop As Integer = margin + tableHeight + gap
-        Dim chartHeight As Integer = 310
-        Dim controlsTop As Integer = chartTop + chartHeight + gap
-
-        If dgvMainSession Is Nothing Then
-            dgvMainSession = New DataGridView With {
-                .Name = "dgvMainSession",
-                .Location = New Point(margin, margin),
-                .Size = New Size(tableWidth, tableHeight),
-                .AllowUserToAddRows = False,
-                .AllowUserToDeleteRows = False,
-                .AllowUserToResizeRows = False,
-                .ReadOnly = True,
-                .RowHeadersVisible = False,
-                .SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-                .AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill
-            }
-            dgvMainSession.Columns.Add("Property", "Property")
-            dgvMainSession.Columns.Add("Value", "Value")
-            Me.Controls.Add(dgvMainSession)
-        End If
-        dgvMainSession.Location = New Point(margin, margin)
-        dgvMainSession.Size = New Size(tableWidth, tableHeight)
-
-        If dgvMainInputs Is Nothing Then
-            dgvMainInputs = New DataGridView With {
-                .Name = "dgvMainInputs",
-                .Location = New Point(margin + tableWidth + gap, margin),
-                .Size = New Size(tableWidth, tableHeight),
-                .AllowUserToAddRows = False,
-                .AllowUserToDeleteRows = False,
-                .AllowUserToResizeRows = False,
-                .ReadOnly = True,
-                .RowHeadersVisible = False,
-                .SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-                .AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill
-            }
-            dgvMainInputs.Columns.Add("Input", "Input")
-            dgvMainInputs.Columns.Add("Schedule", "Schedule")
-            dgvMainInputs.Columns.Add("RfReady", "Rf ready")
-            dgvMainInputs.Columns.Add("Responses", "Resp")
-            dgvMainInputs.Columns.Add("CODResponses", "COD")
-            dgvMainInputs.Columns.Add("Reinforcers", "Rf")
-            Me.Controls.Add(dgvMainInputs)
-        End If
-        dgvMainInputs.Location = New Point(margin + tableWidth + gap, margin)
-        dgvMainInputs.Size = New Size(tableWidth, tableHeight)
-
-        If pnlManualControls Is Nothing Then
-            pnlManualControls = New FlowLayoutPanel With {
-                .Name = "pnlManualControls",
-                .Location = New Point(margin, controlsTop),
-                .Size = New Size(Me.ClientSize.Width - (margin * 2), 112),
-                .AutoScroll = True,
-                .WrapContents = True,
-                .Visible = False
-            }
-            Me.Controls.Add(pnlManualControls)
-        End If
-        pnlManualControls.Location = New Point(margin, controlsTop)
-        pnlManualControls.Size = New Size(Me.ClientSize.Width - (margin * 2), 112)
-
-        Chart1.Location = New Point(margin, chartTop)
-        Chart1.Size = New Size(Me.ClientSize.Width - (margin * 2), chartHeight)
-
-        If btnFinish.Parent IsNot pnlManualControls Then
-            Me.Controls.Remove(btnFinish)
-            pnlManualControls.Controls.Add(btnFinish)
-        End If
-        btnFinish.Size = New Size(138, 28)
-        btnFinish.Margin = New Padding(3)
-        btnFinish.Font = New Font("Microsoft Sans Serif", 8.25!, FontStyle.Regular, GraphicsUnit.Point, CType(0, Byte))
-        btnFinish.BackColor = Color.Firebrick
-        btnFinish.ForeColor = Color.White
-        btnFinish.FlatStyle = FlatStyle.Flat
-        btnFinish.UseVisualStyleBackColor = False
-        btnFinish.Visible = SessionStarted AndAlso SessionEnding = False
-    End Sub
-
     Private Sub EnsureChartSeries()
         If ChartSeriesConfigured Then Exit Sub
-
-        Chart1.Series.Clear()
-        If Chart1.ChartAreas.Count = 0 Then Chart1.ChartAreas.Add("ChartArea1")
-        Dim chartArea As ChartArea = Chart1.ChartAreas(0)
-        chartArea.AxisX.MajorGrid.Enabled = False
-        chartArea.AxisX.MinorGrid.Enabled = False
-        chartArea.AxisY.MajorGrid.Enabled = False
-        chartArea.AxisY.MinorGrid.Enabled = False
-        chartArea.AxisX.Title = "Time"
-        chartArea.AxisY.Title = "Responses"
-        chartArea.AxisX.StripLines.Clear()
-        If Chart1.Legends.Count = 0 Then Chart1.Legends.Add("Legend1")
-        Chart1.Legends(0).Docking = Docking.Right
-
-        For inputIndex As Integer = 0 To MAX_INPUTS - 1
-            Dim inputSeries As String = ResponseSeriesName(inputIndex)
-            If Chart1.Series.IndexOf(inputSeries) < 0 Then
-                Dim series As New Series(inputSeries)
-                series.ChartArea = "ChartArea1"
-                series.ChartType = SeriesChartType.StepLine
-                series.Legend = "Legend1"
-                series.BorderWidth = 2
-                series.IsVisibleInLegend = False
-                Chart1.Series.Add(series)
-            End If
-
-            Dim reinforcerSeries As String = ReinforcerSeriesName(inputIndex)
-            If Chart1.Series.IndexOf(reinforcerSeries) < 0 Then
-                Dim series As New Series(reinforcerSeries)
-                series.ChartArea = "ChartArea1"
-                series.ChartType = SeriesChartType.Point
-                series.Legend = "Legend1"
-                series.MarkerStyle = MarkerStyle.Cross
-                series.MarkerSize = 8
-                series.IsVisibleInLegend = False
-                Chart1.Series.Add(series)
-            End If
+        'Series names and appearance are defined in the Chart1 designer collection.
+        For Each series As Series In Chart1.Series
+            series.Points.Clear()
         Next
-
-        Dim componentColors() As Color = {
-            Color.FromArgb(45, Color.Blue),
-            Color.FromArgb(45, Color.Red),
-            Color.FromArgb(55, Color.Goldenrod),
-            Color.FromArgb(45, Color.Green),
-            Color.FromArgb(45, Color.DarkViolet),
-            Color.FromArgb(45, Color.Teal),
-            Color.FromArgb(45, Color.OrangeRed),
-            Color.FromArgb(45, Color.SlateGray),
-            Color.FromArgb(45, Color.DeepPink),
-            Color.FromArgb(45, Color.DarkCyan)
-        }
-
-        For componentIndex As Integer = 1 To MAX_COMPONENTS
-            Dim componentSeries As String = ComponentSeriesName(componentIndex)
-            Dim series As New Series(componentSeries)
-            series.ChartArea = "ChartArea1"
-            series.ChartType = SeriesChartType.Area
-            series.Legend = "Legend1"
-            series.BorderWidth = 1
-            series.Color = componentColors((componentIndex - 1) Mod componentColors.Length)
-            series.IsVisibleInLegend = False
-            Chart1.Series.Add(series)
-        Next
-
+        Chart1.ChartAreas(0).AxisX.StripLines.Clear()
         ChartSeriesConfigured = True
     End Sub
 
@@ -1495,13 +1290,6 @@ RetryOrder:
             FileClose(i) 'Closes data file.
         Next
     End Sub
-
-    Private Sub Session_FormClosing(sender As Object, e As FormClosingEventArgs) Handles MyBase.FormClosing
-        StopAndSave()
-        StopRuntimeTimers()
-        CloseConnection()
-    End Sub
-
 
     Private Sub tmrChrt_Tick(sender As Object, e As EventArgs) Handles tmrChrt.Tick
         If SessionClosed Then Return

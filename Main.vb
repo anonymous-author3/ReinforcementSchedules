@@ -1,87 +1,35 @@
 Public Class Main
-    Inherits Form
 
     Private Class ChamberEntry
         Public Configuration As ChamberConfiguration
         Public Session As ChamberSession
         Public Row As DataGridViewRow
-        Public RecordPanel As Panel
         Public Expanded As Boolean
     End Class
 
     Private ReadOnly chambers As New List(Of ChamberEntry)()
-    Private ReadOnly overview As New DataGridView()
-    Private ReadOnly records As New FlowLayoutPanel()
-    Private ReadOnly hubLayout As New TableLayoutPanel()
-    Private WithEvents refreshTimer As New Timer With {.Interval = 250}
+    Private ReadOnly expandedOverviewStyle As RowStyle
+    Private ReadOnly expandedRecordsStyle As RowStyle
     Private closingHub As Boolean
 
     Public Sub New()
-        Text = "Main — Session hub"
-        ClientSize = New Size(1280, 760)
-        MinimumSize = New Size(980, 520)
-        StartPosition = FormStartPosition.CenterScreen
+        InitializeComponent()
+        expandedOverviewStyle = New RowStyle(hubLayout.RowStyles(1).SizeType, hubLayout.RowStyles(1).Height)
+        expandedRecordsStyle = New RowStyle(hubLayout.RowStyles(2).SizeType, hubLayout.RowStyles(2).Height)
+    End Sub
 
-        hubLayout.Dock = DockStyle.Fill
-        hubLayout.ColumnCount = 1
-        hubLayout.RowCount = 3
-        hubLayout.RowStyles.Add(New RowStyle(SizeType.Absolute, 42))
-        hubLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 100))
-        hubLayout.RowStyles.Add(New RowStyle(SizeType.Absolute, 0))
-        Dim toolbar As New FlowLayoutPanel With {.Dock = DockStyle.Fill, .Padding = New Padding(6)}
-        Dim setupButton As New Button With {.Text = "Add / configure boxes", .AutoSize = True}
-        AddHandler setupButton.Click, Sub()
-                                          SetUp.WindowState = FormWindowState.Normal
-                                          SetUp.Activate()
-                                      End Sub
-        toolbar.Controls.Add(setupButton)
-        Dim collapseButton As New Button With {.Text = "Collapse all records", .AutoSize = True}
-        AddHandler collapseButton.Click, AddressOf CollapseAll
-        toolbar.Controls.Add(collapseButton)
-        toolbar.Controls.Add(New Label With {
-            .Text = "Counts are session totals. Each box starts independently.",
-            .AutoSize = True, .Margin = New Padding(14, 7, 0, 0)
-        })
-
-        overview.Dock = DockStyle.Fill
-        overview.ReadOnly = True
-        overview.AllowUserToAddRows = False
-        overview.AllowUserToDeleteRows = False
-        overview.AllowUserToResizeRows = False
-        overview.RowHeadersVisible = False
-        overview.SelectionMode = DataGridViewSelectionMode.FullRowSelect
-        overview.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill
-        overview.RowTemplate.Height = 32
-        For Each column As String In New String() {"Box", "COM", "Subject", "Session", "State", "Time (s)", "Component"}
-            overview.Columns.Add(column, column)
-        Next
-        For i As Integer = 1 To MAX_INPUTS
-            overview.Columns.Add("R" & i, "R" & i)
-            overview.Columns("R" & i).FillWeight = 45
-            overview.Columns("R" & i).ToolTipText = "Total responses on input " & i
-        Next
-        overview.Columns.Add("Reinforcers", "Reinforcers")
-        For Each column As String In New String() {"Start", "Finish", "Record", "Remove"}
-            overview.Columns.Add(New DataGridViewButtonColumn With {.Name = column, .HeaderText = column, .FillWeight = 70})
-        Next
-        overview.Columns("State").FillWeight = 140
-        overview.Columns("Component").FillWeight = 150
-        For Each column As DataGridViewColumn In overview.Columns
-            column.SortMode = DataGridViewColumnSortMode.NotSortable
-        Next
-        AddHandler overview.CellContentClick, AddressOf OverviewClick
-
-        records.Dock = DockStyle.Fill
-        records.AutoScroll = True
-        records.FlowDirection = FlowDirection.TopDown
-        records.WrapContents = False
-        records.Visible = False
-        AddHandler records.SizeChanged, AddressOf ResizeRecords
-        hubLayout.Controls.Add(toolbar, 0, 0)
-        hubLayout.Controls.Add(overview, 0, 1)
-        hubLayout.Controls.Add(records, 0, 2)
-        Controls.Add(hubLayout)
+    Private Sub HubLoad(sender As Object, e As EventArgs) Handles MyBase.Load
+        If DesignMode OrElse System.ComponentModel.LicenseManager.UsageMode = System.ComponentModel.LicenseUsageMode.Designtime Then Return
+        'The designer shows the reusable card; real sessions are added from SetUp.
+        records.Controls.Remove(recordPreview)
+        recordPreview.Dispose()
+        UpdateRecordLayout()
         refreshTimer.Start()
+    End Sub
+
+    Private Sub OpenSetup(sender As Object, e As EventArgs) Handles setupButton.Click
+        SetUp.WindowState = FormWindowState.Normal
+        SetUp.Activate()
     End Sub
 
     Public Function PortReserved(comPort As String) As Boolean
@@ -99,15 +47,6 @@ Public Class Main
         End If
         Dim entry As New ChamberEntry With {.Configuration = configuration.Copy()}
         entry.Session = New ChamberSession(entry.Configuration)
-        entry.RecordPanel = New Panel With {.Height = 660, .Width = 1200, .Margin = New Padding(6)}
-        Dim title As New Label With {
-            .Text = configuration.BoxName & " · " & configuration.ComPort & " · " & configuration.Subject & " — Cumulative record",
-            .Dock = DockStyle.Top, .Height = 30, .Padding = New Padding(8), .BackColor = Color.AliceBlue
-        }
-        Dim sessionHost As New Panel With {.Dock = DockStyle.Fill}
-        sessionHost.Controls.Add(entry.Session)
-        entry.RecordPanel.Controls.Add(sessionHost)
-        entry.RecordPanel.Controls.Add(title)
         Dim rowIndex As Integer = overview.Rows.Add()
         entry.Row = overview.Rows(rowIndex)
         entry.Row.Tag = entry
@@ -117,7 +56,7 @@ Public Class Main
         Return True
     End Function
 
-    Private Sub OverviewClick(sender As Object, e As DataGridViewCellEventArgs)
+    Private Sub OverviewClick(sender As Object, e As DataGridViewCellEventArgs) Handles overview.CellContentClick
         If e.RowIndex < 0 OrElse e.ColumnIndex < 0 Then Return
         Dim entry As ChamberEntry = DirectCast(overview.Rows(e.RowIndex).Tag, ChamberEntry)
         Select Case overview.Columns(e.ColumnIndex).Name
@@ -137,9 +76,8 @@ Public Class Main
                     MessageBox.Show(Me, "Finish this box before removing it.", "Session hub")
                     Return
                 End If
-                records.Controls.Remove(entry.RecordPanel)
+                records.Controls.Remove(entry.Session)
                 entry.Session.Dispose()
-                entry.RecordPanel.Dispose()
                 overview.Rows.Remove(entry.Row)
                 chambers.Remove(entry)
                 UpdateRecordLayout()
@@ -151,19 +89,19 @@ Public Class Main
     Private Sub SetExpanded(entry As ChamberEntry, expanded As Boolean)
         entry.Expanded = expanded
         If expanded Then
-            records.Controls.Add(entry.RecordPanel)
+            records.Controls.Add(entry.Session)
             entry.Session.Show()
         Else
-            records.Controls.Remove(entry.RecordPanel)
+            records.Controls.Remove(entry.Session)
         End If
         RefreshEntry(entry)
         UpdateRecordLayout()
     End Sub
 
-    Private Sub CollapseAll(sender As Object, e As EventArgs)
+    Private Sub CollapseAll(sender As Object, e As EventArgs) Handles collapseButton.Click
         For Each entry As ChamberEntry In chambers
             entry.Expanded = False
-            records.Controls.Remove(entry.RecordPanel)
+            records.Controls.Remove(entry.Session)
             RefreshEntry(entry)
         Next
         UpdateRecordLayout()
@@ -171,17 +109,22 @@ Public Class Main
 
     Private Sub UpdateRecordLayout()
         Dim expanded As Boolean = chambers.Any(Function(entry) entry.Expanded)
+        hubLayout.SuspendLayout()
         records.Visible = expanded
-        hubLayout.RowStyles(1).SizeType = If(expanded, SizeType.Absolute, SizeType.Percent)
-        hubLayout.RowStyles(1).Height = If(expanded, Math.Min(280, Math.Max(145, 48 + chambers.Count * 32)), 100)
-        hubLayout.RowStyles(2).SizeType = If(expanded, SizeType.Percent, SizeType.Absolute)
-        hubLayout.RowStyles(2).Height = If(expanded, 100, 0)
+        'Restore the split chosen in Design when a record is expanded.
+        hubLayout.RowStyles(1).SizeType = If(expanded, expandedOverviewStyle.SizeType, SizeType.Percent)
+        hubLayout.RowStyles(1).Height = If(expanded, expandedOverviewStyle.Height, 100)
+        hubLayout.RowStyles(2).SizeType = If(expanded, expandedRecordsStyle.SizeType, SizeType.Absolute)
+        hubLayout.RowStyles(2).Height = If(expanded, expandedRecordsStyle.Height, 0)
+        hubLayout.ResumeLayout(True)
         ResizeRecords(Nothing, EventArgs.Empty)
     End Sub
 
-    Private Sub ResizeRecords(sender As Object, e As EventArgs)
+    Private Sub ResizeRecords(sender As Object, e As EventArgs) Handles records.SizeChanged
         For Each entry As ChamberEntry In chambers
-            entry.RecordPanel.Width = Math.Max(850, records.ClientSize.Width - SystemInformation.VerticalScrollBarWidth - 18)
+            entry.Session.Width = Math.Max(entry.Session.MinimumSize.Width,
+                records.ClientSize.Width - records.Padding.Horizontal -
+                SystemInformation.VerticalScrollBarWidth - entry.Session.Margin.Horizontal)
         Next
     End Sub
 
@@ -223,7 +166,6 @@ Public Class Main
         For Each entry As ChamberEntry In chambers
             entry.Session.StopAndSave()
             entry.Session.Dispose()
-            entry.RecordPanel.Dispose()
         Next
         refreshTimer.Dispose()
     End Sub

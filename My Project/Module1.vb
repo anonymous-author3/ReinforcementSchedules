@@ -7,6 +7,8 @@ Module Module1
     Public RandomCPres As Boolean
     Public AC(MAX_COMPONENTS) As ComponentBlueprint ' ActualComponent
 
+    'Include every component field and every input array in saved setup files.
+    <Serializable()>
     Public Structure ComponentBlueprint
         Dim HouselightOnOff As Boolean
         Dim COD As Double

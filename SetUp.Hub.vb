@@ -1,19 +1,13 @@
 Partial Public Class SetUp
     Private sessionHub As Main
-    Private txtBoxName As TextBox
     Private nextBoxNumber As Integer = 1
 
     Private Sub ConfigureHubControls()
-        If txtBoxName IsNot Nothing Then Return
-        Controls.Add(New Label With {.Text = "Box name:", .Location = New Point(142, 61), .AutoSize = True})
-        txtBoxName = New TextBox With {.Name = "txtBoxName", .Text = "Box 1", .Location = New Point(142, 80), .Size = New Size(140, 20)}
-        Controls.Add(txtBoxName)
-        Dim openHub As New Button With {.Text = "Open session hub", .Location = New Point(142, 108), .Size = New Size(140, 28)}
-        AddHandler openHub.Click, Sub() ShowHub()
-        Controls.Add(openHub)
-        btnComenzar.Text = "Add box"
         SetUpToolTip.SetToolTip(btnComenzar, "Add this box and a copy of the current program to the hub. Start it from its row in the hub.")
-        Text = "SetUp — Configure a box"
+    End Sub
+
+    Private Sub OpenHubClick(sender As Object, e As EventArgs) Handles btnOpenHub.Click
+        ShowHub()
     End Sub
 
     Private Function ShowHub() As Main
@@ -62,6 +56,10 @@ Partial Public Class SetUp
             If ShowHub().AddChamber(settings) Then
                 nextBoxNumber += 1
                 txtBoxName.Text = "Box " & nextBoxNumber
+                txtSubject.Clear()
+                txtSession.Clear()
+                txtWeight.Clear()
+                txtCOM.Clear()
             End If
         Catch ex As Exception
             MessageBox.Show(Me, ex.Message, "Configure box")
