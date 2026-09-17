@@ -50,7 +50,7 @@ Partial Public Class SetUp
                 .ICISeconds = If(chkICIEnabled.Checked, ReadSessionSeconds(txbICI.Text, "ICI duration"), 0),
                 .RetractDuringICI = ICIRetractInputs(), .ICIStimulus = ICIStimulusType(),
                 .RandomPresentation = CheckBox1.Checked, .ManualSequence = ManualComponentSequence(),
-                .LeverLetters = LeverCommandLetters, .Components = SnapshotComponents(), .ComponentCount = vCC,
+                .CommandMap = ArduinoCommands.Snapshot(), .Components = SnapshotComponents(), .ComponentCount = vCC,
                 .SnapshotLines = ConfigurationSnapshotLines(False)
             }
             If ShowHub().AddChamber(settings) Then

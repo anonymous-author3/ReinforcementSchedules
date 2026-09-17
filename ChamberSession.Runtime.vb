@@ -218,7 +218,7 @@ Partial Public Class ChamberSession
         Dim connection As IO.Ports.SerialPort = Arduino
         Arduino = Nothing
         Try
-            If connection.IsOpen Then connection.WriteLine("htabef" & configuration.LeverLetters.ToLowerInvariant() & "p")
+            If connection.IsOpen Then connection.WriteLine(configuration.CommandMap.Encode("X"))
         Catch ex As Exception
             currentStatus = "Error: " & ex.Message
         End Try

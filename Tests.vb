@@ -3,6 +3,7 @@ Imports System.Windows.Forms.DataVisualization.Charting
 
 Public Class Tests
     Public Arduino As SerialPort
+    Private ReadOnly commandMap As ArduinoCommandMap = ArduinoCommands.Snapshot()
 
     Private ReadOnly ResponseCounts(MAX_INPUTS - 1) As Integer
     Private ReadOnly InputValueLabels(MAX_INPUTS - 1) As Label
@@ -68,7 +69,8 @@ Public Class Tests
         If command = "" Then Exit Sub
         If Arduino Is Nothing OrElse Arduino.IsOpen = False Then Exit Sub
         Try
-            Arduino.WriteLine(command)
+            'Use the map captured when this window opened, and translate only once.
+            Arduino.WriteLine(commandMap.Encode(command))
         Catch ex As Exception
             If closingTest Then Return
             StopTestHardware()
@@ -120,7 +122,7 @@ Public Class Tests
             InputValueLabels(inputIndex) = values(inputIndex)
             InputCountLabels(inputIndex) = counts(inputIndex)
             InputOutputButtons(inputIndex) = outputs(inputIndex)
-            Dim hasOutput As Boolean = InputOutputCommand(inputIndex, True) <> ""
+            Dim hasOutput As Boolean = ArduinoCommandMap.LeverAction(inputIndex, True) <> ""
             outputs(inputIndex).Enabled = hasOutput
             outputs(inputIndex).Text = TestInputName(inputIndex) & If(hasOutput, " output OFF", " output N/A")
         Next
@@ -161,7 +163,7 @@ Public Class Tests
         Dim inputIndex As Integer = CInt(outputButton.Tag)
 
         InputOutputState(inputIndex) = Not InputOutputState(inputIndex)
-        SafeWrite(InputOutputCommand(inputIndex, InputOutputState(inputIndex)))
+        SafeWrite(ArduinoCommandMap.LeverAction(inputIndex, InputOutputState(inputIndex)))
 
         MarkTested(outputButton)
         outputButton.Text = TestInputName(inputIndex) & If(InputOutputState(inputIndex), " output ON", " output OFF")
@@ -211,7 +213,7 @@ Public Class Tests
         tmrFeeder.Enabled = False
         tmrChartTests.Enabled = False
         Try
-            SafeWrite("abefht" & AllInputsOffCommand() & "p")
+            SafeWrite("X")
         Catch
         Finally
             If Arduino IsNot Nothing Then Arduino.Dispose()

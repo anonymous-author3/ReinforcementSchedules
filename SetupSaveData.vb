@@ -8,7 +8,7 @@ Imports System.Xml
 <DataContract(Name:="ReinforcementSchedulesSetup", [Namespace]:="urn:reinforcement-schedules:setup")>
 Friend Class SetupSaveData
     <DataMember(IsRequired:=True)>
-    Public Property FormatVersion As Integer = 2
+    Public Property FormatVersion As Integer = 3
     <DataMember(IsRequired:=True)>
     Public Property SavedAtUtc As DateTime
     <DataMember(IsRequired:=True)>
@@ -29,8 +29,10 @@ Friend Class SetupSaveData
     Public Property RandomPresentation As Boolean
     <DataMember(IsRequired:=True)>
     Public Property ComponentOrder As String
-    <DataMember(IsRequired:=True)>
-    Public Property LeverLetters As String
+    <DataMember(Name:="LeverLetters", EmitDefaultValue:=False)>
+    Public Property LegacyLeverLetters As String
+    <DataMember(EmitDefaultValue:=False)>
+    Public Property CommandMap As ArduinoCommandMap
     <DataMember(IsRequired:=True)>
     Public Property ComponentCount As Integer
     <DataMember(IsRequired:=True)>
@@ -38,14 +40,17 @@ Friend Class SetupSaveData
 
     Public Sub Validate()
         'Version 1 files may contain per-box details; those members are ignored on load.
-        If FormatVersion <> 1 AndAlso FormatVersion <> 2 Then Throw New InvalidDataException("This setup file uses an unsupported version.")
+        If FormatVersion < 1 OrElse FormatVersion > 3 Then Throw New InvalidDataException("This setup file uses an unsupported version.")
         For Each field As PropertyInfo In GetType(SetupSaveData).GetProperties()
+            If field.Name = NameOf(LegacyLeverLetters) Then Continue For
             If field.PropertyType Is GetType(String) AndAlso field.GetValue(Me) Is Nothing Then
                 Throw New InvalidDataException("Missing setup value: " & field.Name & ".")
             End If
         Next
-        Dim letterError As String = LeverCommandValidationError(LeverLetters)
-        If letterError <> "" Then Throw New InvalidDataException(letterError)
+        If FormatVersion < 3 Then CommandMap = ArduinoCommandMap.FromLegacyLevers(LegacyLeverLetters)
+        If CommandMap Is Nothing Then Throw New InvalidDataException("Missing Arduino command map.")
+        Dim commandError As String = CommandMap.ValidationError()
+        If commandError <> "" Then Throw New InvalidDataException(commandError)
         If ComponentCount < 0 OrElse ComponentCount > MAX_COMPONENTS OrElse
             Components Is Nothing OrElse Components.Length <> MAX_COMPONENTS + 1 Then
             Throw New InvalidDataException("Unsupported component count.")

@@ -11,7 +11,7 @@ Partial Public Class SetUp
             .ICIDuration = txbICI.Text, .ICIEnabled = chkICIEnabled.Checked,
             .ICIRetractInputs = chkICIRetractInputs.Checked, .ICIStimulus = ICIStimulusType(),
             .RandomPresentation = CheckBox1.Checked, .ComponentOrder = txbComponentOrder.Text,
-            .LeverLetters = LeverCommandLetters, .ComponentCount = vCC, .Components = SnapshotComponents()
+            .CommandMap = ArduinoCommands.Snapshot(), .ComponentCount = vCC, .Components = SnapshotComponents()
         }
     End Function
 
@@ -29,7 +29,7 @@ Partial Public Class SetUp
         CheckBox1.Checked = settings.RandomPresentation
         RandomCPres = settings.RandomPresentation
         txbComponentOrder.Text = settings.ComponentOrder
-        ConfigureLeverCommands(settings.LeverLetters)
+        ArduinoCommands.Configure(settings.CommandMap)
         UpdateICIState()
         UpdateComponentOrderState()
         RefreshComponentSummaryTable()

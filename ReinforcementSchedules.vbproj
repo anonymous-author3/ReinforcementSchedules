@@ -87,6 +87,7 @@
     </Compile>
     <Compile Include="My Project\Module1.vb" />
     <Compile Include="LeverCommands.vb" />
+    <Compile Include="ArduinoCommands.vb" />
     <Compile Include="LeverCommandSettings.Designer.vb">
       <DependentUpon>LeverCommandSettings.vb</DependentUpon>
     </Compile>
@@ -98,9 +99,11 @@
     </Compile>
     <Compile Include="SetUp.Hub.vb">
       <DependentUpon>SetUp.vb</DependentUpon>
+      <SubType>Form</SubType>
     </Compile>
     <Compile Include="SetUp.Persistence.vb">
       <DependentUpon>SetUp.vb</DependentUpon>
+      <SubType>Form</SubType>
     </Compile>
     <Compile Include="SetupSaveData.vb" />
     <Compile Include="SetUp.Designer.vb">
@@ -120,9 +123,11 @@
     </Compile>
     <Compile Include="ChamberSession.State.vb">
       <DependentUpon>ChamberSession.vb</DependentUpon>
+      <SubType>UserControl</SubType>
     </Compile>
     <Compile Include="ChamberSession.Runtime.vb">
       <DependentUpon>ChamberSession.vb</DependentUpon>
+      <SubType>UserControl</SubType>
     </Compile>
     <Compile Include="ChamberConfiguration.vb" />
     <Compile Include="My Project\AssemblyInfo.vb" />
@@ -189,6 +194,9 @@
   <ItemGroup>
     <Content Include="My Project\rat.gif" />
     <None Include="Resources\rat.gif" />
+    <Content Include="newProgram2026_6inputs_4lights\newProgram2026_6inputs_4lights.ino">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.VisualBasic.targets" />
 </Project>

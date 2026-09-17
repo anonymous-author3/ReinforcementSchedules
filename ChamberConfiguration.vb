@@ -11,13 +11,14 @@ Public Class ChamberConfiguration
     Public Property ICIStimulus As String
     Public Property RandomPresentation As Boolean
     Public Property ManualSequence As List(Of Integer)
-    Public Property LeverLetters As String
+    Public Property CommandMap As ArduinoCommandMap
     Friend Property Components As ComponentBlueprint()
     Public Property ComponentCount As Integer
     Public Property SnapshotLines As String()
 
     Public Function Copy() As ChamberConfiguration
         Dim result As ChamberConfiguration = DirectCast(MemberwiseClone(), ChamberConfiguration)
+        result.CommandMap = CommandMap.Copy()
         result.Components = Components.Select(Function(component) CloneComponent(component)).ToArray()
         result.ManualSequence = If(ManualSequence Is Nothing, Nothing, New List(Of Integer)(ManualSequence))
         result.SnapshotLines = DirectCast(SnapshotLines.Clone(), String())

@@ -403,12 +403,13 @@ Public Class ChamberSession
     Private Sub SendArduino(command As String)
         If SimulationMode Then Exit Sub
         If Arduino Is Nothing OrElse Arduino.IsOpen = False Then Exit Sub
-        Arduino.WriteLine(command)
+        'Arguments identify actions using the default sketch codes; remap only here.
+        Arduino.WriteLine(configuration.CommandMap.Encode(command))
     End Sub
 
 
     Private Sub SetInputOutput(inputIndex As Integer, available As Boolean)
-        Dim command As String = LeverCommands.CommandFor(configuration.LeverLetters, inputIndex, available)
+        Dim command As String = ArduinoCommandMap.LeverAction(inputIndex, available)
         If command <> "" Then SendArduino(command)
     End Sub
 
@@ -779,7 +780,7 @@ Public Class ChamberSession
         If AC(vCC).FeedbackType(Lever).Contains("Time Out") = True Then
             tmrComponentStim.Enabled = False
             tmrComponentLightStim.Enabled = False
-            SendArduino("abefht" & configuration.LeverLetters.ToLowerInvariant())
+            SendArduino("abefht" & ArduinoCommandMap.RetractAllActions())
         End If
 
         FeedbackTimers(Lever).Enabled = True

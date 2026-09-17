@@ -373,7 +373,7 @@ Partial Class SetUp
         Me.btnLeverCommands.Name = "btnLeverCommands"
         Me.btnLeverCommands.Size = New System.Drawing.Size(140, 40)
         Me.btnLeverCommands.TabIndex = 27
-        Me.btnLeverCommands.Text = "Lever commands"
+        Me.btnLeverCommands.Text = "Arduino commands"
         Me.btnLeverCommands.UseVisualStyleBackColor = True
         '
         'btnSave

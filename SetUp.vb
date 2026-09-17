@@ -14,7 +14,10 @@ Public Class SetUp
         AppendConfigLine(lines, "Weight", txtWeight.Text)
         AppendConfigLine(lines, "Component Count", vCC)
         AppendConfigLine(lines, "COM Port", txtCOM.Text)
-        AppendConfigLine(lines, "Lever Command Letters", LeverCommandLetters)
+        Dim commandMap As ArduinoCommandMap = ArduinoCommands.Snapshot()
+        For index As Integer = 0 To ArduinoCommandMap.DefaultCodes.Length - 1
+            AppendConfigLine(lines, "Arduino " & ArduinoCommandMap.CommandName(index), commandMap.Codes(index))
+        Next
         AppendConfigLine(lines, "Start Delay Seconds", txbStart.Text)
         AppendConfigLine(lines, "Post Session Seconds", txbPostSession.Text)
         AppendConfigLine(lines, "Inter Component Interval Seconds", txbICI.Text)
@@ -370,9 +373,9 @@ Public Class SetUp
         SetUpToolTip.SetToolTip(txbStart, "Pre-session period in seconds before the first component starts, useful for habituation.")
         SetUpToolTip.SetToolTip(txbPostSession, "Post-session period in seconds after the session ends, useful as a resting period.")
         SetUpToolTip.SetToolTip(txbComponentOrder, "Optional explicit component order, e.g., 1,2,1,3. Leave blank to use the order components were added.")
-        SetUpToolTip.SetToolTip(btnSave, "Save program settings and lever commands. Subject, session, weight and COM are entered separately for each box.")
+        SetUpToolTip.SetToolTip(btnSave, "Save program settings and all Arduino commands. Subject, session, weight and COM are entered separately for each box.")
         SetUpToolTip.SetToolTip(btnLoad, "Restore a complete setup, then use Add box for each box you want to configure.")
-        SetUpToolTip.SetToolTip(btnLeverCommands, "Set the Arduino letter for each input. Sessions, manual controls, and tests use these same letters.")
+        SetUpToolTip.SetToolTip(btnLeverCommands, "Remap every Arduino command. Save stores the map in the macro; Load restores it. The program starts with the bundled sketch defaults.")
         UpdateICIState()
         UpdateComponentOrderState()
         RefreshComponentSummaryTable()
