@@ -136,7 +136,7 @@ Public Class Main
         row.Cells("Session").Value = entry.Configuration.SessionName
         row.Cells("State").Value = entry.Session.StatusText
         row.Cells("State").ToolTipText = entry.Session.StatusText
-        row.Cells("Time (s)").Value = entry.Session.ElapsedSeconds
+        row.Cells("TimeSeconds").Value = entry.Session.ElapsedSeconds
         row.Cells("Component").Value = entry.Session.CurrentComponentText
         For i As Integer = 0 To MAX_INPUTS - 1
             row.Cells("R" & (i + 1)).Value = entry.Session.TotalResponses(i)

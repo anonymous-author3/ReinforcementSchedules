@@ -81,7 +81,7 @@ Public Class Tests
 
     Private Function OpenArduinoOrSimulation() As Boolean
         Try
-            Arduino = New SerialPort(SetUp.txtCOM.Text, 9600) With {.WriteTimeout = 100, .ReadTimeout = 100}
+            Arduino = New SerialPort(SetUp.txtCOM.Text, 9600) With {.WriteTimeout = 1000, .ReadTimeout = 100}
             Arduino.Open()
             SimulationMode = False
             Return True

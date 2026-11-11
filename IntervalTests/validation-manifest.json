@@ -1,0 +1,26 @@
+{
+  "executable": "C:\\ReinforcementSchedules_review\\bin\\IntervalValidation\\ReinforcementSchedules.exe",
+  "sha256": "11D30A0693F2CB5A90C09EA22BBE81F53100E8DC4BAECC79B0454C772AE9CF14",
+  "configuration": "Release .NET Framework 4.7.2",
+  "backup": "C:\\ReinforcementSchedules_before_interval_fix_20261110_141733",
+  "files": {
+    "IntervalScheduleTiming.vb": "bc3992623bc1db5dc60def16d81f47763e3e4c61184f1df5358e87ed0775eb6e",
+    "ChamberSession.vb": "2bfb54d8256e9b72e3b03ce8bcdf99ea15ff0ec80342972fc4a80b64c37233c1",
+    "ChamberSession.State.vb": "25fe6add390cadbb62ae51543d2a2d0db253ddcd0a97bfc651e338a8b6af4af9",
+    "Component.vb": "0409a57370e5cc679f0a24e9409e4814618d02f08b4f9f641c169cddb9675e5c",
+    "ChamberSession.Runtime.vb": "7db9ffa4a1f47ea97b7fb6f9c99c143ce841d6d6b58316f783de0077b17ab4e9",
+    "SetupSaveData.vb": "d946e4a0f979df2e2978264bda674e23f49ecf273c886e67032d4f5070674fac",
+    "SetUp.vb": "1c1005a28d26a219a6a219857d4a164f725e8f6493d7a1783db79dd853a72f75",
+    "ReinforcementSchedules.vbproj": "68b93ea26bf45a0d4caab3de96d7e3b789048816b179a738c9c21fd1c4e48e5d"
+  },
+  "tests": {
+    "FI_values": 2147483,
+    "VI_means": 650243,
+    "VI_intervals": 6502430,
+    "interval_assertions": 599,
+    "lag_runtime_assertions": 50171,
+    "lag_independent_assertions": 15049,
+    "storage_assertions": 82,
+    "editor_checks": 31
+  }
+}

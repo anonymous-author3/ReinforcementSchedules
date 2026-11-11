@@ -1,4 +1,4 @@
-Public Class SetUp
+﻿Public Class SetUp
     Private ReadOnly SetUpToolTip As New ToolTip()
 
     Private Sub AppendConfigLine(lines As List(Of String), label As String, value As Object)
@@ -43,6 +43,12 @@ Public Class SetUp
             AppendConfigLine(lines, "Component " & i & " Time Reinforcer Type", If(AC(i).TimeReinforcer = "", "N/A", AC(i).TimeReinforcer))
             AppendConfigLine(lines, "Component " & i & " Time Reinforcer Delivery Probability", AC(i).TimeDeliveryP)
             AppendConfigLine(lines, "Component " & i & " Time Reinforcer Pellet Probability", AC(i).TimePelletP)
+            AppendConfigLine(lines, "Component " & i & " Lag Enabled", AC(i).LagEnabled)
+            AppendConfigLine(lines, "Component " & i & " Lag Sequence Length", AC(i).LagSequenceLength)
+            AppendConfigLine(lines, "Component " & i & " Lag Value", AC(i).LagValue)
+            AppendConfigLine(lines, "Component " & i & " Lag Use Timeout", AC(i).LagUseTimeout)
+            AppendConfigLine(lines, "Component " & i & " Lag Timeout Seconds", AC(i).LagTimeoutSeconds)
+            AppendConfigLine(lines, "Component " & i & " Lag Timeout Tone", AC(i).LagTimeoutTone)
             AppendConfigLine(lines, "Component " & i & " Input Count", AC(i).InputCount)
 
             For inputIndex As Integer = 0 To AC(i).InputCount - 1
@@ -70,6 +76,12 @@ Public Class SetUp
                 AppendConfigLine(lines, "Component " & i & " Input " & (inputIndex + 1) & " Delay Retract", AC(i).DelayRetract(inputIndex))
                 AppendConfigLine(lines, "Component " & i & " Input " & (inputIndex + 1) & " Delay Signal Duration Seconds", AC(i).DelaySignalDuration(inputIndex))
             Next
+        Next
+        For i As Integer = 1 To vCC
+            If AC(i).LagEnabled Then
+                AppendConfigLine(lines, "Component " & i & " Maximum Lag Sequences Per Presentation", AC(i).LagMaxSequences)
+                If AC(i).LagHistoryReference IsNot Nothing Then AppendConfigLine(lines, "Component " & i & " Prior Lag Session", AC(i).LagHistoryReference.SourceDescription & "; UID=" & AC(i).LagHistoryReference.SessionUid & "; component=" & AC(i).LagHistoryReference.SelectedComponent)
+            End If
         Next
         Return lines.ToArray()
     End Function
@@ -250,6 +262,7 @@ Public Class SetUp
     Private Function ScheduleDisplay(componentIndex As Integer, inputIndex As Integer) As String
         If IsInputUnavailable(componentIndex, inputIndex) Then Return "N/A"
         If IsExtinction(componentIndex, inputIndex) Then Return "Extinction"
+        If AC(componentIndex).LagEnabled Then Return "Lag " & AC(componentIndex).LagValue & " / " & AC(componentIndex).LagSequenceLength & " responses"
         If AC(componentIndex).ScheduleType(inputIndex) = "T Schedule" Then
             Dim td As Double = If(AC(componentIndex).TDurationD Is Nothing, 0, AC(componentIndex).TDurationD(inputIndex))
             Dim tDelta As Double = If(AC(componentIndex).TDurationDelta Is Nothing, 0, AC(componentIndex).TDurationDelta(inputIndex))
@@ -338,6 +351,12 @@ Public Class SetUp
         AddSummaryRow("Time schedule", Enumerable.Range(1, vCC).Select(Function(i) TimeScheduleDisplay(i)).ToArray())
         AddSummaryRow("COD (s)", Enumerable.Range(1, vCC).Select(Function(i) CStr(AC(i).COD / 1000)).ToArray())
         AddSummaryRow("Max reinforcers", Enumerable.Range(1, vCC).Select(Function(i) CStr(AC(i).MaxRefs)).ToArray())
+        If Enumerable.Range(1, vCC).Any(Function(i) AC(i).LagEnabled) Then
+            AddSummaryRow("Max Lag sequences (0=off)", Enumerable.Range(1, vCC).Select(Function(i) If(AC(i).LagEnabled, CStr(AC(i).LagMaxSequences), "")).ToArray())
+            AddSummaryRow("Prior Lag session", Enumerable.Range(1, vCC).Select(Function(i) If(AC(i).LagHistoryReference Is Nothing, "None", AC(i).LagHistoryReference.Subject & " / " & AC(i).LagHistoryReference.SessionName)).ToArray())
+            AddSummaryRow("Lag failure", Enumerable.Range(1, vCC).Select(Function(i) If(AC(i).LagEnabled, If(AC(i).LagUseTimeout, "Time Out " & AC(i).LagTimeoutSeconds & " s" & If(AC(i).LagTimeoutTone, " + Tono", ""), "Omit reinforcer"), "")).ToArray())
+        End If
+        AddSummaryRow("Yoked reference", Enumerable.Range(1, vCC).Select(Function(i) If(Not AC(i).YokedEnabled OrElse AC(i).YokedReference Is Nothing, "Off", AC(i).YokedReference.Subject & " / " & AC(i).YokedReference.SessionName)).ToArray())
         AddSummaryRow("Input count", Enumerable.Range(1, vCC).Select(Function(i) CStr(AC(i).InputCount)).ToArray())
 
         For inputIndex As Integer = 0 To MAX_INPUTS - 1
@@ -365,6 +384,7 @@ Public Class SetUp
 
     Private Sub SetUp_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         ConfigureHubControls()
+        ConfigureCloudControls()
         SetUpToolTip.InitialDelay = 300
         SetUpToolTip.ReshowDelay = 100
         SetUpToolTip.AutoPopDelay = 7000
@@ -485,11 +505,17 @@ Public Class SetUp
             UpdateICIState()
             UpdateComponentOrderState()
             For i = 1 To vCC
+                'A legacy load replaces, rather than inherits, any previous Lag settings.
+                AC(i) = New ComponentBlueprint
                 ReDim AC(i).InputName(MAX_INPUTS - 1)
                 ReDim AC(i).ScheduleType(MAX_INPUTS - 1)
                 ReDim AC(i).ScheduleValue(MAX_INPUTS - 1)
                 ReDim AC(i).Magnitude(MAX_INPUTS - 1)
                 ReDim AC(i).Reinforcer(MAX_INPUTS - 1)
+                AC(i).LagHistoryReference = Nothing
+                AC(i).YokedReference = Nothing
+                AC(i).YokedEnabled = False
+                AC(i).LagMaxSequences = 0
                 ReDim AC(i).DeliveryP(MAX_INPUTS - 1)
                 ReDim AC(i).PelletP(MAX_INPUTS - 1)
                 ReDim AC(i).TDurationD(MAX_INPUTS - 1)
@@ -546,6 +572,19 @@ Public Class SetUp
                     AC(i).TimePelletP = 0
                 End If
 
+                If ConfigLineStartsWith(inputCountLine, "Component " & i & " Lag Enabled") Then
+                    AC(i).LagEnabled = BoolFromConfig(ConfigValueFromLine(inputCountLine))
+                    AC(i).LagSequenceLength = ReadConfigValue(fileReader)
+                    AC(i).LagValue = ReadConfigValue(fileReader)
+                    AC(i).LagUseTimeout = BoolFromConfig(ReadConfigValue(fileReader))
+                    AC(i).LagTimeoutSeconds = ReadConfigValue(fileReader)
+                    inputCountLine = fileReader.ReadLine()
+                    'Older text protocols have Input Count immediately after the timeout duration.
+                    If ConfigLineStartsWith(inputCountLine, "Component " & i & " Lag Timeout Tone") Then
+                        AC(i).LagTimeoutTone = BoolFromConfig(ConfigValueFromLine(inputCountLine))
+                        inputCountLine = fileReader.ReadLine()
+                    End If
+                End If
                 AC(i).InputCount = ConfigValueFromLine(inputCountLine)
                 If AC(i).InputCount <= 0 Then AC(i).InputCount = 2
                 If AC(i).InputCount > MAX_INPUTS Then AC(i).InputCount = MAX_INPUTS
@@ -573,7 +612,12 @@ Public Class SetUp
                         AC(i).DeliveryP(inputIndex) = 0
                         AC(i).PelletP(inputIndex) = 0
                     Else
-                        AC(i).ScheduleValue(inputIndex) = scheduleValueText
+                        Dim scheduleKind As String = If(AC(i).ScheduleType(inputIndex), "").Trim().ToLowerInvariant()
+                        If scheduleKind = "fixed interval" OrElse scheduleKind.Contains("variable interval") Then
+                            AC(i).ScheduleValue(inputIndex) = IntervalScheduleTiming.ParseWholeSeconds(AC(i).ScheduleType(inputIndex), scheduleValueText)
+                        Else
+                            AC(i).ScheduleValue(inputIndex) = scheduleValueText
+                        End If
                         AC(i).Magnitude(inputIndex) = magnitudeText
                         AC(i).Reinforcer(inputIndex) = reinforcerText
                         AC(i).DeliveryP(inputIndex) = deliveryPText
@@ -636,6 +680,10 @@ Public Class SetUp
                     AC(i).DelaySignalDuration(inputIndex) = 0
                 Next
 
+                Dim intervalError As String = IntervalScheduleTiming.ValidationError(AC(i))
+                If intervalError <> "" Then Throw New System.IO.InvalidDataException("Component " & i & ": " & intervalError)
+                Dim lagError As String = LagConfiguration.ValidationError(AC(i))
+                If lagError <> "" Then Throw New System.IO.InvalidDataException("Component " & i & ": " & lagError)
             Next
             RefreshComponentSummaryTable()
 

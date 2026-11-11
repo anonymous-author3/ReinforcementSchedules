@@ -5,3 +5,9 @@ obj/
 *.user
 *.suo
 *.vsidx
+
+# Private editorial material and local distribution bundles
+/rejection letter.txt
+/ReinforcementSchedules_BlindedManuscript*.docx
+/ReinforcementSchedules_*_20*.zip
+/backups/

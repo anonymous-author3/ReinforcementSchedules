@@ -1,0 +1,242 @@
+--- before/IntervalScheduleTiming.vb
++++ after/IntervalScheduleTiming.vb
+@@ -0,0 +1,78 @@
++Option Strict On
++
++'Pure interval calculations: seconds remain Double until the timer's millisecond boundary.
++Friend NotInheritable Class IntervalScheduleTiming
++    Public Const VariableIntervalCount As Integer = 10
++    Public Const MaximumFixedSeconds As Integer = Integer.MaxValue \ 1000
++    Public Shared ReadOnly MaximumVariableMeanSeconds As Integer =
++        CInt(Math.Floor((Integer.MaxValue / 1000.0) / (1.0 + Math.Log(VariableIntervalCount))))
++
++    Private Sub New()
++    End Sub
++
++    Public Shared Function ToTimerMilliseconds(seconds As Double) As Integer
++        If Double.IsNaN(seconds) OrElse Double.IsInfinity(seconds) OrElse
++            seconds < 0.001 OrElse seconds > Integer.MaxValue / 1000.0 Then
++            Throw New ArgumentOutOfRangeException(NameOf(seconds), "An interval must fit the timer range of 1 to 2147483647 milliseconds.")
++        End If
++        'One explicit rounding step, never whole-second rounding and never an added second.
++        Return CInt(Math.Round(seconds * 1000.0, MidpointRounding.AwayFromZero))
++    End Function
++
++    Public Shared Function GenerateVariableSeconds(meanSeconds As Double) As List(Of Double)
++        Dim values As New List(Of Double)(VariableIntervalCount)
++        Dim n As Integer = VariableIntervalCount
++        For m As Integer = 1 To n
++            Dim seconds As Double
++            If m = n Then
++                seconds = meanSeconds * (1.0 + Math.Log(n))
++            Else
++                seconds = meanSeconds * (1.0 + Math.Log(n) +
++                    (n - m) * Math.Log(n - m) - (n - m + 1) * Math.Log(n - m + 1))
++            End If
++            'Reject unsupported requests instead of silently clamping their distribution.
++            ToTimerMilliseconds(seconds)
++            values.Add(seconds)
++        Next
++        Return values
++    End Function
++
++    Public Shared Function ParseWholeSeconds(scheduleType As String, text As String) As Integer
++        Dim value As Integer
++        If Not Integer.TryParse(text, value) Then
++            Throw New ArgumentException("Enter a whole-number interval value in seconds for " & scheduleType & ".")
++        End If
++        Dim problem As String = ValidationError(scheduleType, value)
++        If problem <> "" Then Throw New ArgumentException(problem)
++        Return value
++    End Function
++
++    Public Shared Function ValidationError(scheduleType As String, value As Integer) As String
++        Dim kind As String = If(scheduleType, "").Trim().ToLowerInvariant()
++        Dim maximum As Integer
++        If kind = "fixed interval" Then
++            maximum = MaximumFixedSeconds
++        ElseIf kind.Contains("variable interval") Then
++            maximum = MaximumVariableMeanSeconds
++        Else
++            Return ""
++        End If
++        If value < 1 OrElse value > maximum Then
++            Return "Enter a whole-number interval value from 1 to " & maximum & " seconds for " & scheduleType & "."
++        End If
++        Return ""
++    End Function
++
++    Public Shared Function ValidationError(component As ComponentBlueprint) As String
++        If component.ScheduleType Is Nothing OrElse component.ScheduleValue Is Nothing Then
++            Return "Missing input schedule settings."
++        End If
++        If component.InputCount < 0 OrElse component.InputCount > component.ScheduleType.Length OrElse
++            component.InputCount > component.ScheduleValue.Length Then Return "Incomplete input schedule settings."
++        For i As Integer = 0 To component.InputCount - 1
++            Dim problem As String = ValidationError(component.ScheduleType(i), component.ScheduleValue(i))
++            If problem <> "" Then Return "Input " & (i + 1) & ": " & problem
++        Next
++        Return ""
++    End Function
++End Class
+--- before/ChamberSession.vb
++++ after/ChamberSession.vb
+@@ -634,7 +634,7 @@
+         ' Reset per-component data
+         ' =========================================================
+         For inputIndex As Integer = 0 To MAX_INPUTS - 1
+-            VIList(inputIndex) = New List(Of Integer)
++            VIList(inputIndex) = New List(Of Double)
+         Next
+         TimeScheduleList = New List(Of Integer)
+ 
+@@ -931,41 +931,21 @@
+         Dim maxGoal As Integer = Math.Max(minGoal + 1, CInt(Math.Ceiling(AC(vCC).ScheduleValue(x) * 1.5)))
+         RatioGoal(x) = SessionRandom.Next(minGoal, maxGoal + 1)
+     End Sub
+-    Private Sub FIGen(x) 'This initializes Fixed Interval schedules depending on the selected values / operanda.
+-        'FI schedules use a timer to check if the specified schedule value has elapsed.
+-        'Visual Basic manages time in miliseconds, so values are multiplied by 1000.
+-        ScheduleTimers(x).Interval = Math.Max(1, (AC(vCC).ScheduleValue(x) + 1) * 1000)
+-        ScheduleTimers(x).Enabled = True
+-    End Sub
+-    Private Sub VIGen(list As Integer) 'This initializes Variable Interval schedules depending on the selected values / operanda.
+-        'VI schedules employ Hantula's (1991) method for Fleshler & Hoffman's (1968) iterative equation on Visual Basic.
+-        'This Subroutine takes 'list' as a value to allocate VI iterations on separate data arrays, allowing for concurrent and independent VI schedules.
+-        'VI values are selected at random from the lists without replacement.
+-        Dim v As Integer
+-        Dim n = 10 'This value represents the VI iterations.
+-        Dim rd(n)
+-        Dim vi(n)
+-        Dim order
+-        v = AC(vCC).ScheduleValue(list)
+-        If VIList(list).Count = 0 Then
+-            For m As Integer = 1 To n
+-                If m = n Then vi(m) = v * (1 + Log(n)) : GoTo 1
+-                vi(m) = v * (1 + (Log(n)) + (n - m) * (Log(n - m)) - (n - m + 1) * Log(n - m + 1))
+-1:              order = SessionRandom.Next(1, n + 1)
+-                If rd(order) = 0 Then
+-                    rd(order) = vi(m)
+-                Else
+-                    GoTo 1
+-                End If
+-            Next
+-            For a As Integer = 1 To n
+-                VIList(list).Add(rd(a))
+-            Next
+-        End If
+-        Dim p As Integer = SessionRandom.Next(VIList(list).Count)
+-        ScheduleTimers(list).Interval = Math.Max(1, (VIList(list).Item(p) + 1) * 1000)
+-        ScheduleTimers(list).Enabled = True
+-        VIList(list).RemoveAt(p)
++    Private Sub FIGen(inputIndex As Integer)
++        ScheduleTimers(inputIndex).Interval = IntervalScheduleTiming.ToTimerMilliseconds(AC(vCC).ScheduleValue(inputIndex))
++        ScheduleTimers(inputIndex).Enabled = True
++    End Sub
++
++    Private Sub VIGen(inputIndex As Integer)
++        'Fleshler-Hoffman list of 10 intervals. Keep fractional seconds until timer conversion.
++        'Uniform random selection/removal itself produces a permutation without replacement.
++        If VIList(inputIndex).Count = 0 Then
++            VIList(inputIndex).AddRange(IntervalScheduleTiming.GenerateVariableSeconds(AC(vCC).ScheduleValue(inputIndex)))
++        End If
++        Dim selected As Integer = SessionRandom.Next(VIList(inputIndex).Count)
++        ScheduleTimers(inputIndex).Interval = IntervalScheduleTiming.ToTimerMilliseconds(VIList(inputIndex)(selected))
++        ScheduleTimers(inputIndex).Enabled = True
++        VIList(inputIndex).RemoveAt(selected)
+     End Sub
+ 
+     Private Function TStimulus(inputIndex As Integer) As String
+--- before/ChamberSession.State.vb
++++ after/ChamberSession.State.vb
+@@ -13,7 +13,7 @@
+     Private TimeRefCount(MAX_COMPONENTS) As Integer
+     Private TimeRefCount_i As Integer
+     Private refRdy(MAX_INPUTS - 1) As Boolean
+-    Private VIList(MAX_INPUTS - 1) As List(Of Integer)
++    Private VIList(MAX_INPUTS - 1) As List(Of Double)
+     Private ObtainedDelays(MAX_INPUTS - 1) As List(Of Integer)
+     Private RatioCount(MAX_INPUTS - 1) As Integer
+     Private RatioGoal(MAX_INPUTS - 1) As Integer
+--- before/Component.vb
++++ after/Component.vb
+@@ -458,6 +458,11 @@
+         End If
+ 
+         Dim inputInfo As ComponentInputConfiguration = BuildInputFromEditor(AddedInputs.Count + 1)
++        Dim intervalError As String = IntervalScheduleTiming.ValidationError(inputInfo.ScheduleType, inputInfo.ScheduleValue)
++        If intervalError <> "" Then
++            MsgBox(intervalError)
++            Exit Sub
++        End If
+         If inputInfo.ScheduleType = "T Schedule" Then
+             If inputInfo.TDurationD <= 0 OrElse inputInfo.TDurationDelta <= 0 Then
+                 MsgBox("Please enter TD and TΔ durations greater than 0.")
+@@ -746,8 +751,8 @@
+         ComponentToolTip.SetToolTip(rdoNAL1, "N/A: this input is not available during the component and does not run a response schedule.")
+         ComponentToolTip.SetToolTip(rdoFRL1, "Fixed Ratio: each fixed number of responses produces a scheduled reinforcer.")
+         ComponentToolTip.SetToolTip(rdoVRL1, "Variable Ratio: the response requirement varies around the programmed value.")
+-        ComponentToolTip.SetToolTip(rdoFIL1, "Fixed Interval: a reinforcer becomes available after the fixed time; the next response collects it.")
+-        ComponentToolTip.SetToolTip(rdoVIL1, "Variable Interval: the availability interval varies around the programmed value; the next response collects it.")
++        ComponentToolTip.SetToolTip(rdoFIL1, "Fixed Interval: whole seconds, without an added second. The first response after availability collects the reinforcer. Windows timer delivery is not hard real time.")
++        ComponentToolTip.SetToolTip(rdoVIL1, "Variable Interval: whole-second mean; 10 Fleshler-Hoffman intervals sampled without replacement. Fractional intervals are retained to milliseconds; the next response collects the reinforcer.")
+         ComponentToolTip.SetToolTip(txbTD, "TD duration in seconds. Responses during TD use P TD to determine reinforcer delivery.")
+         ComponentToolTip.SetToolTip(txbTDelta, "TΔ duration in seconds. Responses during TΔ use P TΔ to determine reinforcer delivery.")
+         ComponentToolTip.SetToolTip(txbTPD, "Probability that each response during TD delivers a reinforcer.")
+--- before/ChamberSession.Runtime.vb
++++ after/ChamberSession.Runtime.vb
+@@ -22,6 +22,8 @@
+         vCC = 1
+         RandomCPres = configuration.RandomPresentation
+         For i As Integer = 1 To MAXvCC
++            Dim intervalError As String = IntervalScheduleTiming.ValidationError(AC(i))
++            If intervalError <> "" Then Throw New ArgumentException("Component " & i & ": " & intervalError)
+             Dim lagError As String = LagConfiguration.ValidationError(AC(i))
+             If lagError <> "" Then Throw New ArgumentException("Component " & i & ": " & lagError)
+             AC(i).IterationsLeft = AC(i).ComponentIteration
+--- before/SetupSaveData.vb
++++ after/SetupSaveData.vb
+@@ -67,6 +67,8 @@
+                     Throw New InvalidDataException("Incomplete " & field.Name & " in component " & componentIndex & ".")
+                 End If
+             Next
++            Dim intervalError As String = IntervalScheduleTiming.ValidationError(component)
++            If intervalError <> "" Then Throw New InvalidDataException("Component " & componentIndex & ": " & intervalError)
+             Dim lagError As String = LagConfiguration.ValidationError(component)
+             If lagError <> "" Then Throw New InvalidDataException("Component " & componentIndex & ": " & lagError)
+         Next
+--- before/SetUp.vb
++++ after/SetUp.vb
+@@ -593,7 +593,12 @@
+                         AC(i).DeliveryP(inputIndex) = 0
+                         AC(i).PelletP(inputIndex) = 0
+                     Else
+-                        AC(i).ScheduleValue(inputIndex) = scheduleValueText
++                        Dim scheduleKind As String = If(AC(i).ScheduleType(inputIndex), "").Trim().ToLowerInvariant()
++                        If scheduleKind = "fixed interval" OrElse scheduleKind.Contains("variable interval") Then
++                            AC(i).ScheduleValue(inputIndex) = IntervalScheduleTiming.ParseWholeSeconds(AC(i).ScheduleType(inputIndex), scheduleValueText)
++                        Else
++                            AC(i).ScheduleValue(inputIndex) = scheduleValueText
++                        End If
+                         AC(i).Magnitude(inputIndex) = magnitudeText
+                         AC(i).Reinforcer(inputIndex) = reinforcerText
+                         AC(i).DeliveryP(inputIndex) = deliveryPText
+@@ -656,6 +661,8 @@
+                     AC(i).DelaySignalDuration(inputIndex) = 0
+                 Next
+ 
++                Dim intervalError As String = IntervalScheduleTiming.ValidationError(AC(i))
++                If intervalError <> "" Then Throw New System.IO.InvalidDataException("Component " & i & ": " & intervalError)
+                 Dim lagError As String = LagConfiguration.ValidationError(AC(i))
+                 If lagError <> "" Then Throw New System.IO.InvalidDataException("Component " & i & ": " & lagError)
+             Next
+--- before/ReinforcementSchedules.vbproj
++++ after/ReinforcementSchedules.vbproj
+@@ -82,6 +82,7 @@
+     <Import Include="System.Threading.Tasks" />
+   </ItemGroup>
+   <ItemGroup>
++    <Compile Include="IntervalScheduleTiming.vb" />
+     <Compile Include="LagSequenceTracker.vb" />
+     <Compile Include="LagSequenceReport.vb" />
+     <Compile Include="Component.Lag.vb">

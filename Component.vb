@@ -75,6 +75,7 @@ Public Class Component
     End Function
 
     Private Function GetSelectedScheduleType() As String
+        If IsLagScheduleMode() Then Return "Lag"
         If cbbScheduleMode IsNot Nothing AndAlso cbbScheduleMode.Text = "T Schedules" Then Return "T Schedule"
         If rdoNAL1.Checked Then Return "N/A"
         If rdoFRL1.Checked Then Return "Fixed Ratio"
@@ -180,7 +181,7 @@ Public Class Component
     End Function
 
     Private Sub UpdateFeedbackState()
-        Dim enabled As Boolean = HasFeedbackSelection()
+        Dim enabled As Boolean = HasFeedbackSelection() AndAlso (Not IsLagScheduleMode() OrElse lagFeedbackIndex >= 0)
         txbStimDurL1.Enabled = enabled
         txbStimDurL1.Visible = enabled
         Label12.Visible = enabled
@@ -352,18 +353,19 @@ Public Class Component
 
     Private Sub UpdateScheduleModeState()
         Dim tMode As Boolean = IsTScheduleMode()
+        Dim lagMode As Boolean = IsLagScheduleMode()
 
-        rdoExt1.Visible = Not tMode
-        rdoNAL1.Visible = Not tMode
-        rdoFRL1.Visible = Not tMode
-        rdoVRL1.Visible = Not tMode
-        rdoFIL1.Visible = Not tMode
-        rdoVIL1.Visible = Not tMode
-        Label13.Visible = Not tMode
-        txbValueL1.Visible = Not tMode
+        rdoExt1.Visible = Not tMode AndAlso Not lagMode
+        rdoNAL1.Visible = Not tMode AndAlso Not lagMode
+        rdoFRL1.Visible = Not tMode AndAlso Not lagMode
+        rdoVRL1.Visible = Not tMode AndAlso Not lagMode
+        rdoFIL1.Visible = Not tMode AndAlso Not lagMode
+        rdoVIL1.Visible = Not tMode AndAlso Not lagMode
+        Label13.Visible = Not tMode AndAlso Not lagMode
+        txbValueL1.Visible = Not tMode AndAlso Not lagMode
         grpTSchedule.Visible = tMode
 
-        If tMode Then
+        If tMode OrElse lagMode Then
             grpMagnitude.Location = New System.Drawing.Point(18, 226)
             grpStimL1.Location = New System.Drawing.Point(18, 308)
             GroupBox2.Location = New System.Drawing.Point(18, 450)
@@ -375,12 +377,13 @@ Public Class Component
             GroupBox1.Height = 548
         End If
 
+        UpdateLagModeState()
         UpdateExtinctionState()
         UpdateTTotal()
     End Sub
 
     Private Sub UpdateExtinctionState()
-        Dim noInputProgram As Boolean = (rdoExt1.Checked OrElse rdoNAL1.Checked) AndAlso IsTScheduleMode() = False
+        Dim noInputProgram As Boolean = (rdoExt1.Checked OrElse rdoNAL1.Checked) AndAlso IsTScheduleMode() = False AndAlso Not IsLagScheduleMode()
 
         txbValueL1.Enabled = Not noInputProgram AndAlso IsTScheduleMode() = False
         grpMagnitude.Enabled = Not noInputProgram
@@ -445,12 +448,21 @@ Public Class Component
     End Sub
 
     Private Sub btnAddInput_Click(sender As Object, e As EventArgs) Handles btnAddInput.Click
+        If IsLagScheduleMode() Then
+            ApplyLagInputs()
+            Exit Sub
+        End If
         If AddedInputs.Count >= MAX_INPUTS Then
             MsgBox("This version supports up to " & MAX_INPUTS & " inputs.")
             Exit Sub
         End If
 
         Dim inputInfo As ComponentInputConfiguration = BuildInputFromEditor(AddedInputs.Count + 1)
+        Dim intervalError As String = IntervalScheduleTiming.ValidationError(inputInfo.ScheduleType, inputInfo.ScheduleValue)
+        If intervalError <> "" Then
+            MsgBox(intervalError)
+            Exit Sub
+        End If
         If inputInfo.ScheduleType = "T Schedule" Then
             If inputInfo.TDurationD <= 0 OrElse inputInfo.TDurationDelta <= 0 Then
                 MsgBox("Please enter TD and TΔ durations greater than 0.")
@@ -506,6 +518,7 @@ Public Class Component
         End If
 
         AddedInputs.Add(inputInfo)
+        If cbbScheduleMode.Items.Contains("Lag Schedules") Then cbbScheduleMode.Items.Remove("Lag Schedules")
         lstInputs.Items.Add(InputSummary(inputInfo))
 
         If AddedInputs.Count >= MAX_INPUTS Then
@@ -518,9 +531,36 @@ Public Class Component
     End Sub
 
     Private Sub btnSubmit_Click(sender As Object, e As EventArgs) Handles btnSubmit.Click
+        If IsLagScheduleMode() Then
+            Dim rawIterations As Integer
+            Dim rawMaxRefs As Integer
+            If Not Integer.TryParse(txbComponentIterations.Text, rawIterations) OrElse rawIterations < 1 OrElse rawIterations > 255 Then
+                MsgBox("Enter whole-number component iterations between 1 and 255.")
+                Exit Sub
+            End If
+            If Not Integer.TryParse(txbMaxRefs.Text, rawMaxRefs) OrElse rawMaxRefs < 0 Then
+                MsgBox("Enter a whole-number maximum reinforcer count of 0 or greater.")
+                Exit Sub
+            End If
+            Dim lightInterval As Double = ToDoubleSafe(txbLightIntermittency.Text, -1)
+            Dim toneInterval As Double = ToDoubleSafe(txbToneIntermittency.Text, -1)
+            If HasComponentLightSelection() AndAlso (Double.IsNaN(lightInterval) OrElse Double.IsInfinity(lightInterval) OrElse lightInterval < 0 OrElse lightInterval > 2147483) Then
+                MsgBox("Enter a finite light intermittency between 0 and 2147483 seconds.")
+                Exit Sub
+            End If
+            If HasComponentToneSelection() AndAlso (Double.IsNaN(toneInterval) OrElse Double.IsInfinity(toneInterval) OrElse toneInterval < 0 OrElse toneInterval > 2147483) Then
+                MsgBox("Enter a finite tone intermittency between 0 and 2147483 seconds.")
+                Exit Sub
+            End If
+            If Not ApplyLagInputs() Then Exit Sub
+        End If
 
         ' === Validaciones fuertes (parse real) ===
         Dim componentDurationSec As Double = ToDoubleSafe(txbComponentDuration.Text, -1)
+        If IsLagScheduleMode() AndAlso (Double.IsNaN(componentDurationSec) OrElse Double.IsInfinity(componentDurationSec) OrElse componentDurationSec <= 0 OrElse componentDurationSec > 2147483) Then
+            MsgBox("Enter a finite Lag component duration greater than 0 and no more than 2147483 seconds.")
+            Exit Sub
+        End If
         If componentDurationSec <= 0 Then
             MsgBox("Please input Component duration (must be > 0).")
             Exit Sub
@@ -598,6 +638,13 @@ Public Class Component
         End If
 
         AC(vCC).InputCount = Math.Min(AddedInputs.Count, MAX_INPUTS)
+        AC(vCC).LagEnabled = IsLagScheduleMode()
+        AC(vCC).LagMaxSequences = If(IsLagScheduleMode(), CInt(lagMaxSequences.Value), 0)
+        AC(vCC).LagSequenceLength = If(IsLagScheduleMode(), CInt(lagLength.Value), 0)
+        AC(vCC).LagValue = If(IsLagScheduleMode(), CInt(lagValue.Value), 0)
+        AC(vCC).LagUseTimeout = IsLagScheduleMode() AndAlso lagFailure.SelectedIndex = 1
+        AC(vCC).LagTimeoutSeconds = If(AC(vCC).LagUseTimeout, CDbl(lagTimeout.Value), 0)
+        AC(vCC).LagTimeoutTone = AC(vCC).LagUseTimeout AndAlso lagTimeoutTone.Checked
 
         ReDim AC(vCC).InputName(MAX_INPUTS - 1)
         ReDim AC(vCC).ScheduleType(MAX_INPUTS - 1)
@@ -670,11 +717,14 @@ Public Class Component
         SetUp.RefreshComponentSummaryTable()
 
         If vCC >= 2 Then SetUp.CheckBox1.Enabled = True
+        componentEditorSubmitted = True
 
         Me.Close()
     End Sub
 
     Private Sub Component_Load(sender As Object, e As EventArgs) Handles MyBase.Load
+        componentEditorSlot = CInt(vCC)
+        InitializeLagEditor()
         Me.AutoScroll = False
         Me.StartPosition = FormStartPosition.CenterParent
         GroupBox1.Text = "Input"
@@ -703,8 +753,8 @@ Public Class Component
         ComponentToolTip.SetToolTip(rdoNAL1, "N/A: this input is not available during the component and does not run a response schedule.")
         ComponentToolTip.SetToolTip(rdoFRL1, "Fixed Ratio: each fixed number of responses produces a scheduled reinforcer.")
         ComponentToolTip.SetToolTip(rdoVRL1, "Variable Ratio: the response requirement varies around the programmed value.")
-        ComponentToolTip.SetToolTip(rdoFIL1, "Fixed Interval: a reinforcer becomes available after the fixed time; the next response collects it.")
-        ComponentToolTip.SetToolTip(rdoVIL1, "Variable Interval: the availability interval varies around the programmed value; the next response collects it.")
+        ComponentToolTip.SetToolTip(rdoFIL1, "Fixed Interval: whole seconds, without an added second. The first response after availability collects the reinforcer. Windows timer delivery is not hard real time.")
+        ComponentToolTip.SetToolTip(rdoVIL1, "Variable Interval: whole-second mean; 10 Fleshler-Hoffman intervals sampled without replacement. Fractional intervals are retained to milliseconds; the next response collects the reinforcer.")
         ComponentToolTip.SetToolTip(txbTD, "TD duration in seconds. Responses during TD use P TD to determine reinforcer delivery.")
         ComponentToolTip.SetToolTip(txbTDelta, "TΔ duration in seconds. Responses during TΔ use P TΔ to determine reinforcer delivery.")
         ComponentToolTip.SetToolTip(txbTPD, "Probability that each response during TD delivers a reinforcer.")
@@ -739,15 +789,11 @@ Public Class Component
 
     ' Cancel: limpia slot y baja contador (evita componentes a medias)
     Private Sub btnClose_Click(sender As Object, e As EventArgs) Handles btnClose.Click
-        If vCC >= 1 Then
-            AC(vCC) = New ComponentBlueprint
-            vCC -= 1
-        End If
         Me.Close()
     End Sub
 
     Private Sub cbbReinforcer1_SelectedIndexChanged(sender As Object, e As EventArgs) Handles cbbReinforcer1.SelectedIndexChanged
-        If rdoExt1.Checked OrElse rdoNAL1.Checked Then
+        If (rdoExt1.Checked OrElse rdoNAL1.Checked) AndAlso Not IsTScheduleMode() AndAlso Not IsLagScheduleMode() Then
             txbPelletProbability1.Text = ""
             txbDeliveryProbability1.Text = ""
             txbDeliveryProbability1.Enabled = False

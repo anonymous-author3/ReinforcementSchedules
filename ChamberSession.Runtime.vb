@@ -1,4 +1,4 @@
-Imports System.IO
+﻿Imports System.IO
 Imports System.Globalization
 
 Partial Public Class ChamberSession
@@ -6,6 +6,9 @@ Partial Public Class ChamberSession
     Private serialBuffer As String = ""
     Private rawWriter As StreamWriter
     Private summaryWriter As StreamWriter
+    Private lagReportPath As String
+    Private lagReportThread As System.Threading.Thread
+    Private lagReportError As String
     Private chartPath As String
     Private runtimeStarted As Boolean
     Private finalizing As Boolean
@@ -19,6 +22,12 @@ Partial Public Class ChamberSession
         vCC = 1
         RandomCPres = configuration.RandomPresentation
         For i As Integer = 1 To MAXvCC
+            Dim intervalError As String = IntervalScheduleTiming.ValidationError(AC(i))
+            If intervalError <> "" Then Throw New ArgumentException("Component " & i & ": " & intervalError)
+            Dim referenceError As String = ReferenceConfiguration.ValidationError(AC(i))
+            If referenceError <> "" Then Throw New ArgumentException("Component " & i & ": " & referenceError)
+            Dim lagError As String = LagConfiguration.ValidationError(AC(i))
+            If lagError <> "" Then Throw New ArgumentException("Component " & i & ": " & lagError)
             AC(i).IterationsLeft = AC(i).ComponentIteration
             ReDim AC(i).ComponentDuration_measured(AC(i).ComponentIteration)
         Next
@@ -46,6 +55,9 @@ Partial Public Class ChamberSession
 
     Public ReadOnly Property StatusText As String
         Get
+            Dim reportError As String = System.Threading.Volatile.Read(lagReportError)
+            If reportError IsNot Nothing Then Return reportError
+            If lagReportThread IsNot Nothing AndAlso lagReportThread.IsAlive Then Return currentStatus & "; saving Lag report"
             Return currentStatus
         End Get
     End Property
@@ -84,15 +96,27 @@ Partial Public Class ChamberSession
         If runtimeStarted OrElse SessionClosed Then Return False
         Try
             SessionUID = Guid.NewGuid().ToString("N")
+            cloudDestination = CloudStorage.Current.CaptureDestination()
             Dim fileStem As String = SafeFilePart(configuration.BoxName) & "_" & SafeFilePart(configuration.Subject) & "_" &
                 SafeFilePart(configuration.SessionName) & "_" & Date.Now.ToString("yyyyMMdd_HHmmss") & "_" & SessionUID
             Directory.CreateDirectory("C:\Data\Raw")
             Directory.CreateDirectory("C:\Data\Summary")
             Directory.CreateDirectory("C:\Data\Charts")
-            rawWriter = New StreamWriter(Path.Combine("C:\Data\Raw", fileStem & "_Raw.txt")) With {.AutoFlush = True}
-            summaryWriter = New StreamWriter(Path.Combine("C:\Data\Summary", fileStem & "_Summary.txt")) With {.AutoFlush = True}
+            rawPath = Path.Combine("C:\Data\Raw", fileStem & "_Raw.txt")
+            summaryPath = Path.Combine("C:\Data\Summary", fileStem & "_Summary.txt")
+            If configuration.Components.Take(configuration.ComponentCount + 1).Any(Function(component) component.LagEnabled) Then
+                lagReportPath = Path.Combine("C:\Data\Summary", fileStem & "_LagSequences.csv")
+            End If
+            rawWriter = New StreamWriter(rawPath) With {.AutoFlush = True}
+            summaryWriter = New StreamWriter(summaryPath) With {.AutoFlush = True}
             chartPath = Path.Combine("C:\Data\Charts", fileStem & "_chart.png")
             WriteLine(1, "Session UID: " & SessionUID)
+            WriteLine(1, "ReferenceFormat", 2)
+            WriteLine(1, "Subject: " & configuration.Subject)
+            WriteLine(1, "Session: " & configuration.SessionName)
+            WriteLine(2, "ReferenceFormat", 2)
+            WriteLine(2, "DeliveredReinforcer rows: session milliseconds, component, event, global presentation, input (0=independent time schedule), Pellet/Liquid, Lag sequence (0=none), source, batch number. Each row records one command sent, not sensor-confirmed dispensing.")
+            WriteLine(2, "LagOutcome rows: session milliseconds, component, event, sequence number, commands delivered, result. Pass/Fail remains separate from actual delivery commands.")
             WriteLine(2, "Session UID: " & SessionUID)
             WriteLine(2, "Box: " & configuration.BoxName)
             WriteLine(2, "Subject: " & configuration.Subject)
@@ -102,11 +126,13 @@ Partial Public Class ChamberSession
                 WriteLine(2, line)
             Next
             WriteLine(2, "Event code legend:")
+            WriteLine(2, "LagSequence: sequence number, physical-input sequence, Pass/Fail, compared previous count, Lag. Pass means criterion met, not necessarily a delivered reinforcer.")
+            WriteLine(2, "LagPartialDiscarded: incomplete sequence and stop reason. LagTOStart/End/Interrupted delimit failure timeout. LagTOResponseN, LagDelayResponseN, LagInactiveResponseN and LagBoundaryResponseN preserve physical input N without adding to the sequence.")
             For i As Integer = 0 To MAX_INPUTS - 1
                 WriteLine(2, "Input " & (i + 1) & " response: " & (i + 1) & "; reinforcer: R" & (i + 1))
             Next
             If SessionClosed Then Return False
-            Arduino = New IO.Ports.SerialPort(configuration.ComPort, 9600) With {.WriteTimeout = 100, .ReadTimeout = 100}
+            Arduino = New IO.Ports.SerialPort(configuration.ComPort, 9600) With {.WriteTimeout = 1000, .ReadTimeout = 100}
             Arduino.Open()
             runtimeStarted = True
             SendArduino("p")
@@ -148,7 +174,7 @@ Partial Public Class ChamberSession
                 If values.Length >= ActiveInputCount() AndAlso values.Length <= MAX_INPUTS AndAlso values.All(Function(value) value = "0" OrElse value = "1") Then
                     For inputIndex As Integer = 0 To values.Length - 1
                         Actual_Response(inputIndex) = values(inputIndex)
-                        If values(inputIndex) = "0" AndAlso Previous_Response(inputIndex) = "1" AndAlso IsInputAvailable(inputIndex) Then
+                        If values(inputIndex) = "0" AndAlso Previous_Response(inputIndex) = "1" AndAlso (IsInputAvailable(inputIndex) OrElse IsLagComponent()) Then
                             Response(inputIndex)
                         End If
                         Previous_Response(inputIndex) = values(inputIndex)
@@ -197,9 +223,39 @@ Partial Public Class ChamberSession
         Catch ex As Exception
             currentStatus = "Error closing data: " & ex.Message
         End Try
+        If fileNumber = 1 Then SaveLagSequenceReport()
     End Sub
 
+    Private Sub SaveLagSequenceReport()
+        If lagReportThread IsNot Nothing OrElse String.IsNullOrEmpty(lagReportPath) OrElse Not File.Exists(rawPath) Then Return
+        'The hub shares a UI/acquisition thread across chambers. Scan/sort/write off that thread.
+        'A foreground worker also finishes on normal app shutdown, even if this control is disposed.
+        Dim settings As ChamberConfiguration = configuration.Copy()
+        Dim sourcePath As String = rawPath
+        Dim targetPath As String = lagReportPath
+        Dim id As String = SessionUID
+        Try
+            WriteLine(2, "Additional Lag sequence report (saved separately): " & targetPath)
+        Catch
+            'A failed summary writer must not prevent recovery of the raw data into a report.
+        End Try
+        lagReportThread = New System.Threading.Thread(
+            Sub()
+                Try
+                    LagSequenceReport.Save(sourcePath, targetPath, settings, id)
+                Catch ex As Exception
+                    Dim message As String = "Error saving Lag sequence report: " & ex.Message & ". Raw data retained: " & sourcePath
+                    System.Threading.Volatile.Write(lagReportError, message)
+                    Try
+                        File.WriteAllText(sourcePath & "_LagReportError.txt", message)
+                    Catch
+                    End Try
+                End Try
+            End Sub) With {.IsBackground = False, .Name = "Lag report " & id}
+        lagReportThread.Start()
+    End Sub
     Private Sub StopRuntimeTimers()
+        StopLagActivity("SessionStop")
         acquisitionTimer.Stop()
         For Each timer As Timer In New Timer() {tmrChrt, tmrStart, tmrPostSession, tmrComponentDuration, tmrComponentStim,
             tmrComponentLightStim, tmrTimeSchedule, tmrICI, tmrCOD}
@@ -242,12 +298,14 @@ Partial Public Class ChamberSession
         currentStatus = "Error: " & ex.Message
         Try
             WriteLine(2, currentStatus)
+            MarkReferenceClosed("Error")
             If runtimeStarted Then WriteSessionSummary()
         Catch
         Finally
             FileClose(1)
             FileClose(2)
         End Try
+        QueueFinishedSession()
         UpdateManualControls()
     End Sub
 
@@ -275,12 +333,18 @@ Partial Public Class ChamberSession
         If configuration Is Nothing Then Return
         StopRuntimeTimers()
         CloseConnection()
+        Try
+            MarkReferenceClosed("Disposed")
+        Catch
+            'Retain the raw data even when a closure marker cannot be written.
+        End Try
         FileClose(1)
         FileClose(2)
         acquisitionTimer.Dispose()
         tmrChrt.Dispose()
         tmrComponentLightStim.Dispose()
         tmrTimeSchedule.Dispose()
+        If lagTimeoutTimer IsNot Nothing Then lagTimeoutTimer.Dispose()
         For Each group As Timer() In New Timer()() {ScheduleTimers, DelayTimers, DelaySignalTimers,
             DelaySignalStartTimers, FeedbackTimers, TPeriodTimers, TInterPeriodTimers}
             For Each timer As Timer In group

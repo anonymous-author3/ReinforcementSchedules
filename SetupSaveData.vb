@@ -1,4 +1,4 @@
-Imports System.IO
+﻿Imports System.IO
 Imports System.Reflection
 Imports System.Runtime.Serialization
 Imports System.Text
@@ -8,7 +8,7 @@ Imports System.Xml
 <DataContract(Name:="ReinforcementSchedulesSetup", [Namespace]:="urn:reinforcement-schedules:setup")>
 Friend Class SetupSaveData
     <DataMember(IsRequired:=True)>
-    Public Property FormatVersion As Integer = 3
+    Public Property FormatVersion As Integer = 5
     <DataMember(IsRequired:=True)>
     Public Property SavedAtUtc As DateTime
     <DataMember(IsRequired:=True)>
@@ -40,7 +40,7 @@ Friend Class SetupSaveData
 
     Public Sub Validate()
         'Version 1 files may contain per-box details; those members are ignored on load.
-        If FormatVersion < 1 OrElse FormatVersion > 3 Then Throw New InvalidDataException("This setup file uses an unsupported version.")
+        If FormatVersion < 1 OrElse FormatVersion > 5 Then Throw New InvalidDataException("This setup file uses an unsupported version.")
         For Each field As PropertyInfo In GetType(SetupSaveData).GetProperties()
             If field.Name = NameOf(LegacyLeverLetters) Then Continue For
             If field.PropertyType Is GetType(String) AndAlso field.GetValue(Me) Is Nothing Then
@@ -67,6 +67,12 @@ Friend Class SetupSaveData
                     Throw New InvalidDataException("Incomplete " & field.Name & " in component " & componentIndex & ".")
                 End If
             Next
+            Dim intervalError As String = IntervalScheduleTiming.ValidationError(component)
+            If intervalError <> "" Then Throw New InvalidDataException("Component " & componentIndex & ": " & intervalError)
+            Dim referenceError As String = ReferenceConfiguration.ValidationError(component)
+            If referenceError <> "" Then Throw New InvalidDataException("Component " & componentIndex & ": " & referenceError)
+            Dim lagError As String = LagConfiguration.ValidationError(component)
+            If lagError <> "" Then Throw New InvalidDataException("Component " & componentIndex & ": " & lagError)
         Next
     End Sub
 
@@ -82,6 +88,7 @@ Friend Class SetupSaveData
                     serializer.WriteObject(writer, Me)
                 End Using
                 stream.Flush(True)
+                If stream.Length > 4 * 1024 * 1024 Then Throw New InvalidDataException("This setup and its reference snapshots exceed the 4 MB setup limit. Choose a smaller reference session.")
             End Using
             'Replace only after the complete new file has been written successfully.
             If File.Exists(destination) Then
@@ -99,17 +106,28 @@ Friend Class SetupSaveData
     End Sub
 
     Public Shared Function Read(filePath As String) As SetupSaveData
+        Using stream As New FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read)
+            Return ReadStream(stream)
+        End Using
+    End Function
+
+    Public Shared Function ReadXml(xml As String) As SetupSaveData
+        If xml Is Nothing OrElse xml.Length > 4 * 1024 * 1024 Then Throw New InvalidDataException("Invalid setup size.")
+        Using stream As New MemoryStream(Encoding.UTF8.GetBytes(xml))
+            Return ReadStream(stream)
+        End Using
+    End Function
+
+    Private Shared Function ReadStream(stream As Stream) As SetupSaveData
         Dim settings As New XmlReaderSettings With {
             .DtdProcessing = DtdProcessing.Prohibit, .XmlResolver = Nothing,
             .MaxCharactersInDocument = 4 * 1024 * 1024
         }
-        Using stream As New FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read)
-            Using reader As XmlReader = XmlReader.Create(stream, settings)
-                Dim result As SetupSaveData = DirectCast(New DataContractSerializer(GetType(SetupSaveData)).ReadObject(reader), SetupSaveData)
-                If result Is Nothing Then Throw New InvalidDataException("Empty setup file.")
-                result.Validate()
-                Return result
-            End Using
+        Using reader As XmlReader = XmlReader.Create(stream, settings)
+            Dim result As SetupSaveData = DirectCast(New DataContractSerializer(GetType(SetupSaveData)).ReadObject(reader), SetupSaveData)
+            If result Is Nothing Then Throw New InvalidDataException("Empty setup file.")
+            result.Validate()
+            Return result
         End Using
     End Function
 End Class

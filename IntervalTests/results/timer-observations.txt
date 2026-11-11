@@ -1,0 +1,1 @@
+Requested FI timer: 1000 ms. Five software-only observations (not hardware validation): 1024.630, 1023.921, 1011.931, 1036.552, 1008.881 ms.

@@ -1,0 +1,32 @@
+PASS Reject malformed Lag magnitude
+PASS Reject malformed Lag delivery probability
+PASS Reject malformed Lag pellet probability
+PASS Accept valid Lag reinforcer values
+PASS Third mode exists
+PASS Form hidden during isolated test
+PASS FT/VT/COD disabled
+PASS Selector contains only active physical inputs
+PASS Selector is beside response feedback
+PASS Sequence count updates after changing inputs
+PASS Sequence count updates after changing length
+PASS Maximum sequence count does not overflow
+PASS No active inputs clears and disables selector
+PASS Empty Lag selection does not disable Classic feedback
+PASS Empty Lag selection does not disable T feedback
+PASS Empty Lag selection remains disabled on return
+PASS One active physical input and long sequence count
+PASS Tooltip explains zero duration
+PASS Feedback survives mode switches
+PASS Per-input feedback preserved
+PASS Random pellet probability enabled in Lag
+PASS Repeated Apply keeps six physical slots
+PASS Noncontiguous inputs 2 and 6 preserved
+PASS Distinct feedback and zero duration stored
+PASS Deactivating and reactivating input preserves feedback
+PASS Submit saves Lag blueprint in memory
+PASS Failure TO saved
+PASS Shared delay and retraction saved
+PASS Cancel restores component count
+PASS Classic inputs cannot mix with Lag
+PASS Window X/Alt+F4 closing restores component count
+ALL UI TESTS PASSED; no hardware session or file persistence invoked.

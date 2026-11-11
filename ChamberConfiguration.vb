@@ -1,4 +1,4 @@
-Public Class ChamberConfiguration
+﻿Public Class ChamberConfiguration
     Public Property BoxName As String
     Public Property ComPort As String
     Public Property Subject As String
@@ -26,6 +26,8 @@ Public Class ChamberConfiguration
     End Function
     Friend Shared Function CloneComponent(source As ComponentBlueprint) As ComponentBlueprint
         Dim copy As ComponentBlueprint = source
+        If source.YokedReference IsNot Nothing Then copy.YokedReference = source.YokedReference.Copy()
+        If source.LagHistoryReference IsNot Nothing Then copy.LagHistoryReference = source.LagHistoryReference.Copy()
         If source.ComponentDuration_measured IsNot Nothing Then copy.ComponentDuration_measured = DirectCast(source.ComponentDuration_measured.Clone(), Integer())
         If source.InputName IsNot Nothing Then copy.InputName = DirectCast(source.InputName.Clone(), String())
         If source.ScheduleType IsNot Nothing Then copy.ScheduleType = DirectCast(source.ScheduleType.Clone(), String())

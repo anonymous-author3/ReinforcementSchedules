@@ -1,0 +1,29 @@
+{
+  "validated_utc": "2026-11-11T17:45:24.547298+00:00",
+  "backup": "backups/timeout-tone-20261111-113833",
+  "build": "bin/LagValidation/ReinforcementSchedules.exe",
+  "build_sha256": "b7ee4ec2655626787dc6cae6d2577f0e0d471e847cc84b0c9f1b16e1ce911818",
+  "tests": {
+    "lag_runtime_assertions": 50192,
+    "lag_independent_assertions": 15049,
+    "tone_editor_persistence_assertions": 15,
+    "interval_assertions": 599,
+    "interval_exhaustive": "2147483 FI requests; 650243 means / 6502430 VI intervals",
+    "reference_runtime_assertions": 40
+  },
+  "limitations": [
+    "No hardware or serial session opened. Physical sound and timing remain unverified.",
+    "Original full UI StorageTests and visible LagEditorTests not rerun to avoid interrupting the active desktop.",
+    "Debug and Release executables not replaced."
+  ],
+  "files": {
+    "Component.Lag.vb": "7a19e00a73365dfb236089042af5fa7d34b17050d66622447637990c2fddfb70",
+    "Component.vb": "59b6f57c22fbc6fd9308915ec64665ea40817fc9715145450490a79d2308f862",
+    "My Project/Module1.vb": "23d767897cd90376cdfa22e7886d3fa5df32038b815a9de858dc88a445f7c87c",
+    "ChamberSession.Lag.vb": "33f5d473b98c07d34767c36de826c50c7fa1e4fb80e319ec9ae28793bfd2bbf5",
+    "SetUp.vb": "e976b24771730aa96003d0c81e1fbd36c554851ce160d2a807366cfc608f72ad",
+    "LAG_SCHEDULES.md": "39d1c09cee721466d5f1f62ff235e3338903579e77a5345a9d8eb1d5a44e849e",
+    "LagRuntimeTests/LagRuntimeTests.vb": "40372fb44d4d0e39b54b679595a2a4a40ac58a08256f8a4e5f654021ede536a1",
+    "LagTimeoutToneTests.ps1": "3dd4d3aafdef7047cec2e0db874d4128a5a195a7109b5bf1e761c6e60f415175"
+  }
+}

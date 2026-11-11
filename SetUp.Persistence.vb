@@ -44,7 +44,7 @@ Partial Public Class SetUp
         Return Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)
     End Function
 
-    Private Sub btnSave_Click(sender As Object, e As EventArgs) Handles btnSave.Click
+    Private Async Sub btnSave_Click(sender As Object, e As EventArgs) Handles btnSave.Click
         Using dialog As New SaveFileDialog With {
             .Title = "Save program setup — choose a name and folder",
             .Filter = "Setup files (*.xml)|*.xml", .DefaultExt = "xml", .AddExtension = True,
@@ -56,11 +56,21 @@ Partial Public Class SetUp
             Try
                 CaptureSetup().Save(dialog.FileName)
                 lastConfigurationPath = Path.GetFullPath(dialog.FileName)
-                MessageBox.Show(Me, "Program setup saved to:" & Environment.NewLine & lastConfigurationPath,
-                    "Save setup", MessageBoxButtons.OK, MessageBoxIcon.Information)
             Catch ex As Exception
                 MessageBox.Show(Me, "Could not save the setup:" & Environment.NewLine & ex.Message,
                     "Save setup", MessageBoxButtons.OK, MessageBoxIcon.Error)
+                Return
+            End Try
+            Try
+                Dim queued = ConnectionStorage.QueueSetup(lastConfigurationPath)
+                If queued Then Await ConnectionStorage.SynchronizeAsync()
+                If IsDisposed Then Return
+                MessageBox.Show(Me, "Program setup saved to:" & Environment.NewLine & lastConfigurationPath &
+                    If(queued, Environment.NewLine & Environment.NewLine & ConnectionStorage.Status, ""),
+                    "Save setup", MessageBoxButtons.OK, MessageBoxIcon.Information)
+            Catch ex As Exception
+                MessageBox.Show(Me, "The setup was saved locally, but could not be queued for RTDB. Save it again to retry." &
+                    Environment.NewLine & ex.Message, "Save setup", MessageBoxButtons.OK, MessageBoxIcon.Warning)
             End Try
         End Using
     End Sub
@@ -72,33 +82,37 @@ Partial Public Class SetUp
             .Multiselect = False, .RestoreDirectory = True
         }
             If dialog.ShowDialog(Me) <> DialogResult.OK Then Return
-            Dim previous As SetupSaveData = CaptureSetup()
-            Dim previousTestsPerformed As Boolean = TestsPerformed
-            Try
-                Dim isXml As Boolean
-                Using reader As New StreamReader(dialog.FileName)
-                    While reader.Peek() >= 0 AndAlso Char.IsWhiteSpace(ChrW(reader.Peek()))
-                        reader.Read()
-                    End While
-                    isXml = reader.Peek() = AscW("<"c)
-                End Using
-                If isXml Then
-                    'Read and validate the complete file before updating any controls.
-                    ApplySetup(SetupSaveData.Read(dialog.FileName))
-                Else
-                    LoadLegacyConfiguration(dialog.FileName)
-                End If
-                TestsPerformed = False
-                lastConfigurationPath = Path.GetFullPath(dialog.FileName)
-                MessageBox.Show(Me, "Setup loaded from:" & Environment.NewLine & lastConfigurationPath &
-                    Environment.NewLine & Environment.NewLine & "Use Add box to add boxes with this configuration.",
-                    "Load setup", MessageBoxButtons.OK, MessageBoxIcon.Information)
-            Catch ex As Exception
-                ApplySetup(previous)
-                TestsPerformed = previousTestsPerformed
-                MessageBox.Show(Me, "Could not load the setup. The previous configuration was restored." &
-                    Environment.NewLine & ex.Message, "Load setup", MessageBoxButtons.OK, MessageBoxIcon.Error)
-            End Try
+            LoadSetupFile(dialog.FileName)
         End Using
+    End Sub
+
+    Private Sub LoadSetupFile(filePath As String)
+        Dim previous As SetupSaveData = CaptureSetup()
+        Dim previousTestsPerformed As Boolean = TestsPerformed
+        Try
+            Dim isXml As Boolean
+            Using reader As New StreamReader(filePath)
+                While reader.Peek() >= 0 AndAlso Char.IsWhiteSpace(ChrW(reader.Peek()))
+                    reader.Read()
+                End While
+                isXml = reader.Peek() = AscW("<"c)
+            End Using
+            If isXml Then
+                'Read and validate the complete file before updating any controls.
+                ApplySetup(SetupSaveData.Read(filePath))
+            Else
+                LoadLegacyConfiguration(filePath)
+            End If
+            TestsPerformed = False
+            lastConfigurationPath = Path.GetFullPath(filePath)
+            MessageBox.Show(Me, "Setup loaded from:" & Environment.NewLine & lastConfigurationPath &
+                Environment.NewLine & Environment.NewLine & "Use Add box to add boxes with this configuration.",
+                "Load setup", MessageBoxButtons.OK, MessageBoxIcon.Information)
+        Catch ex As Exception
+            ApplySetup(previous)
+            TestsPerformed = previousTestsPerformed
+            MessageBox.Show(Me, "Could not load the setup. The previous configuration was restored." &
+                Environment.NewLine & ex.Message, "Load setup", MessageBoxButtons.OK, MessageBoxIcon.Error)
+        End Try
     End Sub
 End Class

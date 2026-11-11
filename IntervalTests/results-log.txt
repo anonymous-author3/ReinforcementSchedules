@@ -1,0 +1,8 @@
+PASS exhaustive FI: 2147483 whole-second requests convert exactly.
+PASS exhaustive VI: 650243 means, 6502430 intervals; independent exponential-bin integral oracle and mean verified; maximum rounding error = 0.500000 ms.
+VI 30 seconds, sorted timer ms: 1553,4893,8653,12953,17977,24017,31597,41791,57489,99078
+VI 30 programmed-list mean ms: 30000.100
+PASS runtime: FI response eligibility/rearm, VI 6 inputs x 30 complete cycles, independent chambers, 10000 shuffle cycles. First draw counts: 1002,1034,999,1012,1005,1023,989,950,941,1045
+PASS XML v3/v4 round-trip and unchanged Integer() schema. Fixture: C:\ReinforcementSchedules_review\IntervalTests\results\interval-v4.xml
+Requested FI timer: 1000 ms. Five software-only observations (not hardware validation): 1025.223, 1034.051, 1008.565, 1017.779, 1006.331 ms.
+PASS: 599 integration/boundary assertions, plus exhaustive FI/VI domain. No hardware/network/real session data used.

@@ -1,0 +1,169 @@
+Saved At: 11-11-2026_11-44-10
+Box Name: Box 1
+Subject: S1
+Session: 1
+Weight: 
+Component Count: 1
+COM Port: COM3
+Start Delay Seconds: 5
+Post Session Seconds: 10
+Inter Component Interval Seconds: 5
+Inter Component Interval Enabled: False
+Inter Component Interval Retract Inputs: True
+Inter Component Interval Stimulus Type: None
+Random Component Presentation: False
+Component Presentation Order: 
+Component 1 Houselight On Off: False
+Component 1 Changeover Delay Ms: 0
+Component 1 Max Reinforcers: 0
+Component 1 Name: Component 1
+Component 1 Duration Seconds: 60
+Component 1 Iterations: 1
+Component 1 Light Intermittency Seconds: 0
+Component 1 Tone Intermittency Seconds: 0
+Component 1 Stimulus Type: None
+Component 1 Time Schedule Type: None
+Component 1 Time Schedule Value Seconds: 0
+Component 1 Time Reinforcer Magnitude: 0
+Component 1 Time Reinforcer Type: N/A
+Component 1 Time Reinforcer Delivery Probability: 0
+Component 1 Time Reinforcer Pellet Probability: 0
+Component 1 Lag Enabled: True
+Component 1 Lag Sequence Length: 4
+Component 1 Lag Value: 5
+Component 1 Lag Use Timeout: True
+Component 1 Lag Timeout Seconds: 2.5
+Component 1 Input Count: 6
+Component 1 Input 1 Name: Arduino Pin 2
+Component 1 Input 1 Schedule Type: Lag
+Component 1 Input 1 Schedule Value: 0
+Component 1 Input 1 Reinforcer Magnitude: 1
+Component 1 Input 1 Reinforcer Type: Pellet
+Component 1 Input 1 Reinforcer Delivery Probability: 100
+Component 1 Input 1 Pellet Probability: 0
+Component 1 Input 1 T TD Seconds: 0
+Component 1 Input 1 T TDelta Seconds: 0
+Component 1 Input 1 T Probability TD: 0
+Component 1 Input 1 T Probability TDelta: 0
+Component 1 Input 1 T Cycles: 0
+Component 1 Input 1 T Start Period: 
+Component 1 Input 1 T Inter Period Seconds: 0
+Component 1 Input 1 T TD Stimulus Type: None
+Component 1 Input 1 T TDelta Stimulus Type: None
+Component 1 Input 1 Feedback Duration Seconds: 0
+Component 1 Input 1 Feedback Type: None
+Component 1 Input 1 Delay Duration Seconds: 0
+Component 1 Input 1 Delay Type: None
+Component 1 Input 1 Delay Retract: False
+Component 1 Input 1 Delay Signal Duration Seconds: 0
+Component 1 Input 2 Name: Arduino Pin 3
+Component 1 Input 2 Schedule Type: Lag
+Component 1 Input 2 Schedule Value: 0
+Component 1 Input 2 Reinforcer Magnitude: 1
+Component 1 Input 2 Reinforcer Type: Pellet
+Component 1 Input 2 Reinforcer Delivery Probability: 100
+Component 1 Input 2 Pellet Probability: 0
+Component 1 Input 2 T TD Seconds: 0
+Component 1 Input 2 T TDelta Seconds: 0
+Component 1 Input 2 T Probability TD: 0
+Component 1 Input 2 T Probability TDelta: 0
+Component 1 Input 2 T Cycles: 0
+Component 1 Input 2 T Start Period: 
+Component 1 Input 2 T Inter Period Seconds: 0
+Component 1 Input 2 T TD Stimulus Type: None
+Component 1 Input 2 T TDelta Stimulus Type: None
+Component 1 Input 2 Feedback Duration Seconds: 0
+Component 1 Input 2 Feedback Type: None
+Component 1 Input 2 Delay Duration Seconds: 0
+Component 1 Input 2 Delay Type: None
+Component 1 Input 2 Delay Retract: False
+Component 1 Input 2 Delay Signal Duration Seconds: 0
+Component 1 Input 3 Name: Arduino Pin 4
+Component 1 Input 3 Schedule Type: N/A
+Component 1 Input 3 Schedule Value: N/A
+Component 1 Input 3 Reinforcer Magnitude: N/A
+Component 1 Input 3 Reinforcer Type: N/A
+Component 1 Input 3 Reinforcer Delivery Probability: N/A
+Component 1 Input 3 Pellet Probability: N/A
+Component 1 Input 3 T TD Seconds: 0
+Component 1 Input 3 T TDelta Seconds: 0
+Component 1 Input 3 T Probability TD: 100
+Component 1 Input 3 T Probability TDelta: 0
+Component 1 Input 3 T Cycles: 0
+Component 1 Input 3 T Start Period: TD
+Component 1 Input 3 T Inter Period Seconds: 0
+Component 1 Input 3 T TD Stimulus Type: None
+Component 1 Input 3 T TDelta Stimulus Type: None
+Component 1 Input 3 Feedback Duration Seconds: 0
+Component 1 Input 3 Feedback Type: None
+Component 1 Input 3 Delay Duration Seconds: 1
+Component 1 Input 3 Delay Type: None
+Component 1 Input 3 Delay Retract: False
+Component 1 Input 3 Delay Signal Duration Seconds: 1
+Component 1 Input 4 Name: Arduino Pin 5
+Component 1 Input 4 Schedule Type: N/A
+Component 1 Input 4 Schedule Value: N/A
+Component 1 Input 4 Reinforcer Magnitude: N/A
+Component 1 Input 4 Reinforcer Type: N/A
+Component 1 Input 4 Reinforcer Delivery Probability: N/A
+Component 1 Input 4 Pellet Probability: N/A
+Component 1 Input 4 T TD Seconds: 0
+Component 1 Input 4 T TDelta Seconds: 0
+Component 1 Input 4 T Probability TD: 100
+Component 1 Input 4 T Probability TDelta: 0
+Component 1 Input 4 T Cycles: 0
+Component 1 Input 4 T Start Period: TD
+Component 1 Input 4 T Inter Period Seconds: 0
+Component 1 Input 4 T TD Stimulus Type: None
+Component 1 Input 4 T TDelta Stimulus Type: None
+Component 1 Input 4 Feedback Duration Seconds: 0
+Component 1 Input 4 Feedback Type: None
+Component 1 Input 4 Delay Duration Seconds: 1
+Component 1 Input 4 Delay Type: None
+Component 1 Input 4 Delay Retract: False
+Component 1 Input 4 Delay Signal Duration Seconds: 1
+Component 1 Input 5 Name: Arduino Pin 6
+Component 1 Input 5 Schedule Type: N/A
+Component 1 Input 5 Schedule Value: N/A
+Component 1 Input 5 Reinforcer Magnitude: N/A
+Component 1 Input 5 Reinforcer Type: N/A
+Component 1 Input 5 Reinforcer Delivery Probability: N/A
+Component 1 Input 5 Pellet Probability: N/A
+Component 1 Input 5 T TD Seconds: 0
+Component 1 Input 5 T TDelta Seconds: 0
+Component 1 Input 5 T Probability TD: 100
+Component 1 Input 5 T Probability TDelta: 0
+Component 1 Input 5 T Cycles: 0
+Component 1 Input 5 T Start Period: TD
+Component 1 Input 5 T Inter Period Seconds: 0
+Component 1 Input 5 T TD Stimulus Type: None
+Component 1 Input 5 T TDelta Stimulus Type: None
+Component 1 Input 5 Feedback Duration Seconds: 0
+Component 1 Input 5 Feedback Type: None
+Component 1 Input 5 Delay Duration Seconds: 1
+Component 1 Input 5 Delay Type: None
+Component 1 Input 5 Delay Retract: False
+Component 1 Input 5 Delay Signal Duration Seconds: 1
+Component 1 Input 6 Name: Arduino Pin 7
+Component 1 Input 6 Schedule Type: N/A
+Component 1 Input 6 Schedule Value: N/A
+Component 1 Input 6 Reinforcer Magnitude: N/A
+Component 1 Input 6 Reinforcer Type: N/A
+Component 1 Input 6 Reinforcer Delivery Probability: N/A
+Component 1 Input 6 Pellet Probability: N/A
+Component 1 Input 6 T TD Seconds: 0
+Component 1 Input 6 T TDelta Seconds: 0
+Component 1 Input 6 T Probability TD: 100
+Component 1 Input 6 T Probability TDelta: 0
+Component 1 Input 6 T Cycles: 0
+Component 1 Input 6 T Start Period: TD
+Component 1 Input 6 T Inter Period Seconds: 0
+Component 1 Input 6 T TD Stimulus Type: None
+Component 1 Input 6 T TDelta Stimulus Type: None
+Component 1 Input 6 Feedback Duration Seconds: 0
+Component 1 Input 6 Feedback Type: None
+Component 1 Input 6 Delay Duration Seconds: 1
+Component 1 Input 6 Delay Type: None
+Component 1 Input 6 Delay Retract: False
+Component 1 Input 6 Delay Signal Duration Seconds: 1
+Component 1 Maximum Lag Sequences Per Presentation: 0

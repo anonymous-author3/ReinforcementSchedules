@@ -1,4 +1,4 @@
-Module Module1
+﻿Module Module1
     Public Const MAX_INPUTS As Integer = 6
     Public Const MAX_COMPONENTS As Integer = 10
     Public TestsPerformed As Boolean
@@ -20,6 +20,17 @@ Module Module1
         Dim ComponentLightIntermittency As Double
         Dim ComponentStimDuration As Double
         Dim ComponentStimType As String
+        'Optional fields preserve compatibility with setup files created before Lag.
+        <System.Runtime.Serialization.OptionalField> Public LagEnabled As Boolean
+        <System.Runtime.Serialization.OptionalField> Public LagSequenceLength As Integer
+        <System.Runtime.Serialization.OptionalField> Public LagValue As Integer
+        <System.Runtime.Serialization.OptionalField> Public LagUseTimeout As Boolean
+        <System.Runtime.Serialization.OptionalField> Public LagTimeoutSeconds As Double
+        <System.Runtime.Serialization.OptionalField> Public LagTimeoutTone As Boolean
+        <System.Runtime.Serialization.OptionalField> Public LagMaxSequences As Integer
+        <System.Runtime.Serialization.OptionalField> Public LagHistoryReference As SessionReferenceData
+        <System.Runtime.Serialization.OptionalField> Public YokedEnabled As Boolean
+        <System.Runtime.Serialization.OptionalField> Public YokedReference As SessionReferenceData
         Dim InputCount As Integer
         Dim InputName() As String
         Dim ScheduleType() As String

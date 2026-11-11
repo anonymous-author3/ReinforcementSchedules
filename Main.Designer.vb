@@ -117,7 +117,7 @@ Partial Class Main
         Me.overviewColumn5.ReadOnly = True
         Me.overviewColumn5.SortMode = System.Windows.Forms.DataGridViewColumnSortMode.NotSortable
         Me.overviewColumn5.FillWeight = 140.0!
-        Me.overviewColumn6.Name = "Time (s)"
+        Me.overviewColumn6.Name = "TimeSeconds"
         Me.overviewColumn6.HeaderText = "Time (s)"
         Me.overviewColumn6.ReadOnly = True
         Me.overviewColumn6.SortMode = System.Windows.Forms.DataGridViewColumnSortMode.NotSortable

@@ -1,0 +1,749 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ReinforcementSchedulesSetup xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="urn:reinforcement-schedules:setup">
+  <BoxName>Box 1</BoxName>
+  <CommandMap>
+    <Codes>LlMmCcDdNnOoAaBbEeFfHhTtPpRWZX</Codes>
+  </CommandMap>
+  <ComponentCount>1</ComponentCount>
+  <ComponentOrder></ComponentOrder>
+  <Components xmlns:d2p1="http://schemas.datacontract.org/2004/07/ReinforcementSchedules">
+    <d2p1:Module1.ComponentBlueprint>
+      <d2p1:COD>0</d2p1:COD>
+      <d2p1:ComponentDuration>0</d2p1:ComponentDuration>
+      <d2p1:ComponentDuration_measured xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:ComponentIteration>0</d2p1:ComponentIteration>
+      <d2p1:ComponentLightIntermittency>0</d2p1:ComponentLightIntermittency>
+      <d2p1:ComponentName i:nil="true" />
+      <d2p1:ComponentStimDuration>0</d2p1:ComponentStimDuration>
+      <d2p1:ComponentStimType i:nil="true" />
+      <d2p1:DelayDuration xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:DelayRetract xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:DelaySignalDuration xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:DelayType xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:DeliveryP xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:FeedbackDuration xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:FeedbackType xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:HouselightOnOff>false</d2p1:HouselightOnOff>
+      <d2p1:InputCount>0</d2p1:InputCount>
+      <d2p1:InputName xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:IterationsLeft>0</d2p1:IterationsLeft>
+      <d2p1:LagEnabled>false</d2p1:LagEnabled>
+      <d2p1:LagHistoryReference i:nil="true" />
+      <d2p1:LagMaxSequences>0</d2p1:LagMaxSequences>
+      <d2p1:LagSequenceLength>0</d2p1:LagSequenceLength>
+      <d2p1:LagTimeoutSeconds>0</d2p1:LagTimeoutSeconds>
+      <d2p1:LagTimeoutTone>false</d2p1:LagTimeoutTone>
+      <d2p1:LagUseTimeout>false</d2p1:LagUseTimeout>
+      <d2p1:LagValue>0</d2p1:LagValue>
+      <d2p1:Magnitude xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:MaxRefs>0</d2p1:MaxRefs>
+      <d2p1:PelletP xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:Reinforcer xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:ScheduleType xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:ScheduleValue xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TCycles xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TDurationD xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TDurationDelta xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TInterPeriod xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TProbabilityD xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TProbabilityDelta xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TStartPeriod xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TStimD xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TStimDelta xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TimeDeliveryP>0</d2p1:TimeDeliveryP>
+      <d2p1:TimeMagnitude>0</d2p1:TimeMagnitude>
+      <d2p1:TimePelletP>0</d2p1:TimePelletP>
+      <d2p1:TimeReinforcer i:nil="true" />
+      <d2p1:TimeScheduleType i:nil="true" />
+      <d2p1:TimeScheduleValue>0</d2p1:TimeScheduleValue>
+      <d2p1:YokedEnabled>false</d2p1:YokedEnabled>
+      <d2p1:YokedReference i:nil="true" />
+    </d2p1:Module1.ComponentBlueprint>
+    <d2p1:Module1.ComponentBlueprint>
+      <d2p1:COD>0</d2p1:COD>
+      <d2p1:ComponentDuration>60</d2p1:ComponentDuration>
+      <d2p1:ComponentDuration_measured xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays">
+        <d4p1:int>0</d4p1:int>
+        <d4p1:int>0</d4p1:int>
+      </d2p1:ComponentDuration_measured>
+      <d2p1:ComponentIteration>1</d2p1:ComponentIteration>
+      <d2p1:ComponentLightIntermittency>0</d2p1:ComponentLightIntermittency>
+      <d2p1:ComponentName>Component 1</d2p1:ComponentName>
+      <d2p1:ComponentStimDuration>0</d2p1:ComponentStimDuration>
+      <d2p1:ComponentStimType>None</d2p1:ComponentStimType>
+      <d2p1:DelayDuration xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays">
+        <d4p1:double>0</d4p1:double>
+        <d4p1:double>0</d4p1:double>
+        <d4p1:double>1</d4p1:double>
+        <d4p1:double>1</d4p1:double>
+        <d4p1:double>1</d4p1:double>
+        <d4p1:double>1</d4p1:double>
+      </d2p1:DelayDuration>
+      <d2p1:DelayRetract xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays">
+        <d4p1:boolean>false</d4p1:boolean>
+        <d4p1:boolean>false</d4p1:boolean>
+        <d4p1:boolean>false</d4p1:boolean>
+        <d4p1:boolean>false</d4p1:boolean>
+        <d4p1:boolean>false</d4p1:boolean>
+        <d4p1:boolean>false</d4p1:boolean>
+      </d2p1:DelayRetract>
+      <d2p1:DelaySignalDuration xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays">
+        <d4p1:double>0</d4p1:double>
+        <d4p1:double>0</d4p1:double>
+        <d4p1:double>1</d4p1:double>
+        <d4p1:double>1</d4p1:double>
+        <d4p1:double>1</d4p1:double>
+        <d4p1:double>1</d4p1:double>
+      </d2p1:DelaySignalDuration>
+      <d2p1:DelayType xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays">
+        <d4p1:string>None</d4p1:string>
+        <d4p1:string>None</d4p1:string>
+        <d4p1:string>None</d4p1:string>
+        <d4p1:string>None</d4p1:string>
+        <d4p1:string>None</d4p1:string>
+        <d4p1:string>None</d4p1:string>
+      </d2p1:DelayType>
+      <d2p1:DeliveryP xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays">
+        <d4p1:int>100</d4p1:int>
+        <d4p1:int>100</d4p1:int>
+        <d4p1:int>100</d4p1:int>
+        <d4p1:int>100</d4p1:int>
+        <d4p1:int>100</d4p1:int>
+        <d4p1:int>100</d4p1:int>
+      </d2p1:DeliveryP>
+      <d2p1:FeedbackDuration xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays">
+        <d4p1:double>0</d4p1:double>
+        <d4p1:double>0</d4p1:double>
+        <d4p1:double>0</d4p1:double>
+        <d4p1:double>0</d4p1:double>
+        <d4p1:double>0</d4p1:double>
+        <d4p1:double>0</d4p1:double>
+      </d2p1:FeedbackDuration>
+      <d2p1:FeedbackType xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays">
+        <d4p1:string>None</d4p1:string>
+        <d4p1:string>None</d4p1:string>
+        <d4p1:string>None</d4p1:string>
+        <d4p1:string>None</d4p1:string>
+        <d4p1:string>None</d4p1:string>
+        <d4p1:string>None</d4p1:string>
+      </d2p1:FeedbackType>
+      <d2p1:HouselightOnOff>false</d2p1:HouselightOnOff>
+      <d2p1:InputCount>6</d2p1:InputCount>
+      <d2p1:InputName xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays">
+        <d4p1:string>Arduino Pin 2</d4p1:string>
+        <d4p1:string>Arduino Pin 3</d4p1:string>
+        <d4p1:string>Arduino Pin 4</d4p1:string>
+        <d4p1:string>Arduino Pin 5</d4p1:string>
+        <d4p1:string>Arduino Pin 6</d4p1:string>
+        <d4p1:string>Arduino Pin 7</d4p1:string>
+      </d2p1:InputName>
+      <d2p1:IterationsLeft>0</d2p1:IterationsLeft>
+      <d2p1:LagEnabled>true</d2p1:LagEnabled>
+      <d2p1:LagHistoryReference i:nil="true" />
+      <d2p1:LagMaxSequences>0</d2p1:LagMaxSequences>
+      <d2p1:LagSequenceLength>4</d2p1:LagSequenceLength>
+      <d2p1:LagTimeoutSeconds>2.5</d2p1:LagTimeoutSeconds>
+      <d2p1:LagTimeoutTone>true</d2p1:LagTimeoutTone>
+      <d2p1:LagUseTimeout>true</d2p1:LagUseTimeout>
+      <d2p1:LagValue>5</d2p1:LagValue>
+      <d2p1:Magnitude xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays">
+        <d4p1:int>1</d4p1:int>
+        <d4p1:int>1</d4p1:int>
+        <d4p1:int>1</d4p1:int>
+        <d4p1:int>1</d4p1:int>
+        <d4p1:int>1</d4p1:int>
+        <d4p1:int>1</d4p1:int>
+      </d2p1:Magnitude>
+      <d2p1:MaxRefs>0</d2p1:MaxRefs>
+      <d2p1:PelletP xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays">
+        <d4p1:int>0</d4p1:int>
+        <d4p1:int>0</d4p1:int>
+        <d4p1:int>0</d4p1:int>
+        <d4p1:int>0</d4p1:int>
+        <d4p1:int>0</d4p1:int>
+        <d4p1:int>0</d4p1:int>
+      </d2p1:PelletP>
+      <d2p1:Reinforcer xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays">
+        <d4p1:string>Pellet</d4p1:string>
+        <d4p1:string>Pellet</d4p1:string>
+        <d4p1:string>N/A</d4p1:string>
+        <d4p1:string>N/A</d4p1:string>
+        <d4p1:string>N/A</d4p1:string>
+        <d4p1:string>N/A</d4p1:string>
+      </d2p1:Reinforcer>
+      <d2p1:ScheduleType xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays">
+        <d4p1:string>Lag</d4p1:string>
+        <d4p1:string>Lag</d4p1:string>
+        <d4p1:string>N/A</d4p1:string>
+        <d4p1:string>N/A</d4p1:string>
+        <d4p1:string>N/A</d4p1:string>
+        <d4p1:string>N/A</d4p1:string>
+      </d2p1:ScheduleType>
+      <d2p1:ScheduleValue xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays">
+        <d4p1:int>0</d4p1:int>
+        <d4p1:int>0</d4p1:int>
+        <d4p1:int>0</d4p1:int>
+        <d4p1:int>0</d4p1:int>
+        <d4p1:int>0</d4p1:int>
+        <d4p1:int>0</d4p1:int>
+      </d2p1:ScheduleValue>
+      <d2p1:TCycles xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays">
+        <d4p1:int>0</d4p1:int>
+        <d4p1:int>0</d4p1:int>
+        <d4p1:int>0</d4p1:int>
+        <d4p1:int>0</d4p1:int>
+        <d4p1:int>0</d4p1:int>
+        <d4p1:int>0</d4p1:int>
+      </d2p1:TCycles>
+      <d2p1:TDurationD xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays">
+        <d4p1:double>0</d4p1:double>
+        <d4p1:double>0</d4p1:double>
+        <d4p1:double>0</d4p1:double>
+        <d4p1:double>0</d4p1:double>
+        <d4p1:double>0</d4p1:double>
+        <d4p1:double>0</d4p1:double>
+      </d2p1:TDurationD>
+      <d2p1:TDurationDelta xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays">
+        <d4p1:double>0</d4p1:double>
+        <d4p1:double>0</d4p1:double>
+        <d4p1:double>0</d4p1:double>
+        <d4p1:double>0</d4p1:double>
+        <d4p1:double>0</d4p1:double>
+        <d4p1:double>0</d4p1:double>
+      </d2p1:TDurationDelta>
+      <d2p1:TInterPeriod xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays">
+        <d4p1:double>0</d4p1:double>
+        <d4p1:double>0</d4p1:double>
+        <d4p1:double>0</d4p1:double>
+        <d4p1:double>0</d4p1:double>
+        <d4p1:double>0</d4p1:double>
+        <d4p1:double>0</d4p1:double>
+      </d2p1:TInterPeriod>
+      <d2p1:TProbabilityD xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays">
+        <d4p1:int>0</d4p1:int>
+        <d4p1:int>0</d4p1:int>
+        <d4p1:int>100</d4p1:int>
+        <d4p1:int>100</d4p1:int>
+        <d4p1:int>100</d4p1:int>
+        <d4p1:int>100</d4p1:int>
+      </d2p1:TProbabilityD>
+      <d2p1:TProbabilityDelta xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays">
+        <d4p1:int>0</d4p1:int>
+        <d4p1:int>0</d4p1:int>
+        <d4p1:int>0</d4p1:int>
+        <d4p1:int>0</d4p1:int>
+        <d4p1:int>0</d4p1:int>
+        <d4p1:int>0</d4p1:int>
+      </d2p1:TProbabilityDelta>
+      <d2p1:TStartPeriod xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays">
+        <d4p1:string></d4p1:string>
+        <d4p1:string></d4p1:string>
+        <d4p1:string>TD</d4p1:string>
+        <d4p1:string>TD</d4p1:string>
+        <d4p1:string>TD</d4p1:string>
+        <d4p1:string>TD</d4p1:string>
+      </d2p1:TStartPeriod>
+      <d2p1:TStimD xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays">
+        <d4p1:string>None</d4p1:string>
+        <d4p1:string>None</d4p1:string>
+        <d4p1:string>None</d4p1:string>
+        <d4p1:string>None</d4p1:string>
+        <d4p1:string>None</d4p1:string>
+        <d4p1:string>None</d4p1:string>
+      </d2p1:TStimD>
+      <d2p1:TStimDelta xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays">
+        <d4p1:string>None</d4p1:string>
+        <d4p1:string>None</d4p1:string>
+        <d4p1:string>None</d4p1:string>
+        <d4p1:string>None</d4p1:string>
+        <d4p1:string>None</d4p1:string>
+        <d4p1:string>None</d4p1:string>
+      </d2p1:TStimDelta>
+      <d2p1:TimeDeliveryP>0</d2p1:TimeDeliveryP>
+      <d2p1:TimeMagnitude>0</d2p1:TimeMagnitude>
+      <d2p1:TimePelletP>0</d2p1:TimePelletP>
+      <d2p1:TimeReinforcer>N/A</d2p1:TimeReinforcer>
+      <d2p1:TimeScheduleType>None</d2p1:TimeScheduleType>
+      <d2p1:TimeScheduleValue>0</d2p1:TimeScheduleValue>
+      <d2p1:YokedEnabled>false</d2p1:YokedEnabled>
+      <d2p1:YokedReference i:nil="true" />
+    </d2p1:Module1.ComponentBlueprint>
+    <d2p1:Module1.ComponentBlueprint>
+      <d2p1:COD>0</d2p1:COD>
+      <d2p1:ComponentDuration>0</d2p1:ComponentDuration>
+      <d2p1:ComponentDuration_measured xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:ComponentIteration>0</d2p1:ComponentIteration>
+      <d2p1:ComponentLightIntermittency>0</d2p1:ComponentLightIntermittency>
+      <d2p1:ComponentName i:nil="true" />
+      <d2p1:ComponentStimDuration>0</d2p1:ComponentStimDuration>
+      <d2p1:ComponentStimType i:nil="true" />
+      <d2p1:DelayDuration xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:DelayRetract xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:DelaySignalDuration xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:DelayType xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:DeliveryP xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:FeedbackDuration xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:FeedbackType xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:HouselightOnOff>false</d2p1:HouselightOnOff>
+      <d2p1:InputCount>0</d2p1:InputCount>
+      <d2p1:InputName xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:IterationsLeft>0</d2p1:IterationsLeft>
+      <d2p1:LagEnabled>false</d2p1:LagEnabled>
+      <d2p1:LagHistoryReference i:nil="true" />
+      <d2p1:LagMaxSequences>0</d2p1:LagMaxSequences>
+      <d2p1:LagSequenceLength>0</d2p1:LagSequenceLength>
+      <d2p1:LagTimeoutSeconds>0</d2p1:LagTimeoutSeconds>
+      <d2p1:LagTimeoutTone>false</d2p1:LagTimeoutTone>
+      <d2p1:LagUseTimeout>false</d2p1:LagUseTimeout>
+      <d2p1:LagValue>0</d2p1:LagValue>
+      <d2p1:Magnitude xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:MaxRefs>0</d2p1:MaxRefs>
+      <d2p1:PelletP xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:Reinforcer xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:ScheduleType xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:ScheduleValue xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TCycles xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TDurationD xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TDurationDelta xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TInterPeriod xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TProbabilityD xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TProbabilityDelta xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TStartPeriod xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TStimD xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TStimDelta xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TimeDeliveryP>0</d2p1:TimeDeliveryP>
+      <d2p1:TimeMagnitude>0</d2p1:TimeMagnitude>
+      <d2p1:TimePelletP>0</d2p1:TimePelletP>
+      <d2p1:TimeReinforcer i:nil="true" />
+      <d2p1:TimeScheduleType i:nil="true" />
+      <d2p1:TimeScheduleValue>0</d2p1:TimeScheduleValue>
+      <d2p1:YokedEnabled>false</d2p1:YokedEnabled>
+      <d2p1:YokedReference i:nil="true" />
+    </d2p1:Module1.ComponentBlueprint>
+    <d2p1:Module1.ComponentBlueprint>
+      <d2p1:COD>0</d2p1:COD>
+      <d2p1:ComponentDuration>0</d2p1:ComponentDuration>
+      <d2p1:ComponentDuration_measured xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:ComponentIteration>0</d2p1:ComponentIteration>
+      <d2p1:ComponentLightIntermittency>0</d2p1:ComponentLightIntermittency>
+      <d2p1:ComponentName i:nil="true" />
+      <d2p1:ComponentStimDuration>0</d2p1:ComponentStimDuration>
+      <d2p1:ComponentStimType i:nil="true" />
+      <d2p1:DelayDuration xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:DelayRetract xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:DelaySignalDuration xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:DelayType xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:DeliveryP xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:FeedbackDuration xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:FeedbackType xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:HouselightOnOff>false</d2p1:HouselightOnOff>
+      <d2p1:InputCount>0</d2p1:InputCount>
+      <d2p1:InputName xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:IterationsLeft>0</d2p1:IterationsLeft>
+      <d2p1:LagEnabled>false</d2p1:LagEnabled>
+      <d2p1:LagHistoryReference i:nil="true" />
+      <d2p1:LagMaxSequences>0</d2p1:LagMaxSequences>
+      <d2p1:LagSequenceLength>0</d2p1:LagSequenceLength>
+      <d2p1:LagTimeoutSeconds>0</d2p1:LagTimeoutSeconds>
+      <d2p1:LagTimeoutTone>false</d2p1:LagTimeoutTone>
+      <d2p1:LagUseTimeout>false</d2p1:LagUseTimeout>
+      <d2p1:LagValue>0</d2p1:LagValue>
+      <d2p1:Magnitude xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:MaxRefs>0</d2p1:MaxRefs>
+      <d2p1:PelletP xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:Reinforcer xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:ScheduleType xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:ScheduleValue xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TCycles xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TDurationD xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TDurationDelta xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TInterPeriod xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TProbabilityD xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TProbabilityDelta xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TStartPeriod xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TStimD xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TStimDelta xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TimeDeliveryP>0</d2p1:TimeDeliveryP>
+      <d2p1:TimeMagnitude>0</d2p1:TimeMagnitude>
+      <d2p1:TimePelletP>0</d2p1:TimePelletP>
+      <d2p1:TimeReinforcer i:nil="true" />
+      <d2p1:TimeScheduleType i:nil="true" />
+      <d2p1:TimeScheduleValue>0</d2p1:TimeScheduleValue>
+      <d2p1:YokedEnabled>false</d2p1:YokedEnabled>
+      <d2p1:YokedReference i:nil="true" />
+    </d2p1:Module1.ComponentBlueprint>
+    <d2p1:Module1.ComponentBlueprint>
+      <d2p1:COD>0</d2p1:COD>
+      <d2p1:ComponentDuration>0</d2p1:ComponentDuration>
+      <d2p1:ComponentDuration_measured xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:ComponentIteration>0</d2p1:ComponentIteration>
+      <d2p1:ComponentLightIntermittency>0</d2p1:ComponentLightIntermittency>
+      <d2p1:ComponentName i:nil="true" />
+      <d2p1:ComponentStimDuration>0</d2p1:ComponentStimDuration>
+      <d2p1:ComponentStimType i:nil="true" />
+      <d2p1:DelayDuration xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:DelayRetract xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:DelaySignalDuration xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:DelayType xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:DeliveryP xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:FeedbackDuration xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:FeedbackType xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:HouselightOnOff>false</d2p1:HouselightOnOff>
+      <d2p1:InputCount>0</d2p1:InputCount>
+      <d2p1:InputName xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:IterationsLeft>0</d2p1:IterationsLeft>
+      <d2p1:LagEnabled>false</d2p1:LagEnabled>
+      <d2p1:LagHistoryReference i:nil="true" />
+      <d2p1:LagMaxSequences>0</d2p1:LagMaxSequences>
+      <d2p1:LagSequenceLength>0</d2p1:LagSequenceLength>
+      <d2p1:LagTimeoutSeconds>0</d2p1:LagTimeoutSeconds>
+      <d2p1:LagTimeoutTone>false</d2p1:LagTimeoutTone>
+      <d2p1:LagUseTimeout>false</d2p1:LagUseTimeout>
+      <d2p1:LagValue>0</d2p1:LagValue>
+      <d2p1:Magnitude xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:MaxRefs>0</d2p1:MaxRefs>
+      <d2p1:PelletP xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:Reinforcer xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:ScheduleType xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:ScheduleValue xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TCycles xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TDurationD xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TDurationDelta xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TInterPeriod xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TProbabilityD xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TProbabilityDelta xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TStartPeriod xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TStimD xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TStimDelta xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TimeDeliveryP>0</d2p1:TimeDeliveryP>
+      <d2p1:TimeMagnitude>0</d2p1:TimeMagnitude>
+      <d2p1:TimePelletP>0</d2p1:TimePelletP>
+      <d2p1:TimeReinforcer i:nil="true" />
+      <d2p1:TimeScheduleType i:nil="true" />
+      <d2p1:TimeScheduleValue>0</d2p1:TimeScheduleValue>
+      <d2p1:YokedEnabled>false</d2p1:YokedEnabled>
+      <d2p1:YokedReference i:nil="true" />
+    </d2p1:Module1.ComponentBlueprint>
+    <d2p1:Module1.ComponentBlueprint>
+      <d2p1:COD>0</d2p1:COD>
+      <d2p1:ComponentDuration>0</d2p1:ComponentDuration>
+      <d2p1:ComponentDuration_measured xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:ComponentIteration>0</d2p1:ComponentIteration>
+      <d2p1:ComponentLightIntermittency>0</d2p1:ComponentLightIntermittency>
+      <d2p1:ComponentName i:nil="true" />
+      <d2p1:ComponentStimDuration>0</d2p1:ComponentStimDuration>
+      <d2p1:ComponentStimType i:nil="true" />
+      <d2p1:DelayDuration xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:DelayRetract xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:DelaySignalDuration xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:DelayType xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:DeliveryP xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:FeedbackDuration xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:FeedbackType xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:HouselightOnOff>false</d2p1:HouselightOnOff>
+      <d2p1:InputCount>0</d2p1:InputCount>
+      <d2p1:InputName xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:IterationsLeft>0</d2p1:IterationsLeft>
+      <d2p1:LagEnabled>false</d2p1:LagEnabled>
+      <d2p1:LagHistoryReference i:nil="true" />
+      <d2p1:LagMaxSequences>0</d2p1:LagMaxSequences>
+      <d2p1:LagSequenceLength>0</d2p1:LagSequenceLength>
+      <d2p1:LagTimeoutSeconds>0</d2p1:LagTimeoutSeconds>
+      <d2p1:LagTimeoutTone>false</d2p1:LagTimeoutTone>
+      <d2p1:LagUseTimeout>false</d2p1:LagUseTimeout>
+      <d2p1:LagValue>0</d2p1:LagValue>
+      <d2p1:Magnitude xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:MaxRefs>0</d2p1:MaxRefs>
+      <d2p1:PelletP xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:Reinforcer xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:ScheduleType xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:ScheduleValue xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TCycles xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TDurationD xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TDurationDelta xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TInterPeriod xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TProbabilityD xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TProbabilityDelta xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TStartPeriod xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TStimD xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TStimDelta xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TimeDeliveryP>0</d2p1:TimeDeliveryP>
+      <d2p1:TimeMagnitude>0</d2p1:TimeMagnitude>
+      <d2p1:TimePelletP>0</d2p1:TimePelletP>
+      <d2p1:TimeReinforcer i:nil="true" />
+      <d2p1:TimeScheduleType i:nil="true" />
+      <d2p1:TimeScheduleValue>0</d2p1:TimeScheduleValue>
+      <d2p1:YokedEnabled>false</d2p1:YokedEnabled>
+      <d2p1:YokedReference i:nil="true" />
+    </d2p1:Module1.ComponentBlueprint>
+    <d2p1:Module1.ComponentBlueprint>
+      <d2p1:COD>0</d2p1:COD>
+      <d2p1:ComponentDuration>0</d2p1:ComponentDuration>
+      <d2p1:ComponentDuration_measured xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:ComponentIteration>0</d2p1:ComponentIteration>
+      <d2p1:ComponentLightIntermittency>0</d2p1:ComponentLightIntermittency>
+      <d2p1:ComponentName i:nil="true" />
+      <d2p1:ComponentStimDuration>0</d2p1:ComponentStimDuration>
+      <d2p1:ComponentStimType i:nil="true" />
+      <d2p1:DelayDuration xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:DelayRetract xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:DelaySignalDuration xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:DelayType xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:DeliveryP xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:FeedbackDuration xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:FeedbackType xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:HouselightOnOff>false</d2p1:HouselightOnOff>
+      <d2p1:InputCount>0</d2p1:InputCount>
+      <d2p1:InputName xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:IterationsLeft>0</d2p1:IterationsLeft>
+      <d2p1:LagEnabled>false</d2p1:LagEnabled>
+      <d2p1:LagHistoryReference i:nil="true" />
+      <d2p1:LagMaxSequences>0</d2p1:LagMaxSequences>
+      <d2p1:LagSequenceLength>0</d2p1:LagSequenceLength>
+      <d2p1:LagTimeoutSeconds>0</d2p1:LagTimeoutSeconds>
+      <d2p1:LagTimeoutTone>false</d2p1:LagTimeoutTone>
+      <d2p1:LagUseTimeout>false</d2p1:LagUseTimeout>
+      <d2p1:LagValue>0</d2p1:LagValue>
+      <d2p1:Magnitude xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:MaxRefs>0</d2p1:MaxRefs>
+      <d2p1:PelletP xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:Reinforcer xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:ScheduleType xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:ScheduleValue xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TCycles xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TDurationD xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TDurationDelta xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TInterPeriod xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TProbabilityD xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TProbabilityDelta xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TStartPeriod xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TStimD xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TStimDelta xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TimeDeliveryP>0</d2p1:TimeDeliveryP>
+      <d2p1:TimeMagnitude>0</d2p1:TimeMagnitude>
+      <d2p1:TimePelletP>0</d2p1:TimePelletP>
+      <d2p1:TimeReinforcer i:nil="true" />
+      <d2p1:TimeScheduleType i:nil="true" />
+      <d2p1:TimeScheduleValue>0</d2p1:TimeScheduleValue>
+      <d2p1:YokedEnabled>false</d2p1:YokedEnabled>
+      <d2p1:YokedReference i:nil="true" />
+    </d2p1:Module1.ComponentBlueprint>
+    <d2p1:Module1.ComponentBlueprint>
+      <d2p1:COD>0</d2p1:COD>
+      <d2p1:ComponentDuration>0</d2p1:ComponentDuration>
+      <d2p1:ComponentDuration_measured xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:ComponentIteration>0</d2p1:ComponentIteration>
+      <d2p1:ComponentLightIntermittency>0</d2p1:ComponentLightIntermittency>
+      <d2p1:ComponentName i:nil="true" />
+      <d2p1:ComponentStimDuration>0</d2p1:ComponentStimDuration>
+      <d2p1:ComponentStimType i:nil="true" />
+      <d2p1:DelayDuration xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:DelayRetract xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:DelaySignalDuration xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:DelayType xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:DeliveryP xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:FeedbackDuration xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:FeedbackType xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:HouselightOnOff>false</d2p1:HouselightOnOff>
+      <d2p1:InputCount>0</d2p1:InputCount>
+      <d2p1:InputName xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:IterationsLeft>0</d2p1:IterationsLeft>
+      <d2p1:LagEnabled>false</d2p1:LagEnabled>
+      <d2p1:LagHistoryReference i:nil="true" />
+      <d2p1:LagMaxSequences>0</d2p1:LagMaxSequences>
+      <d2p1:LagSequenceLength>0</d2p1:LagSequenceLength>
+      <d2p1:LagTimeoutSeconds>0</d2p1:LagTimeoutSeconds>
+      <d2p1:LagTimeoutTone>false</d2p1:LagTimeoutTone>
+      <d2p1:LagUseTimeout>false</d2p1:LagUseTimeout>
+      <d2p1:LagValue>0</d2p1:LagValue>
+      <d2p1:Magnitude xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:MaxRefs>0</d2p1:MaxRefs>
+      <d2p1:PelletP xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:Reinforcer xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:ScheduleType xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:ScheduleValue xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TCycles xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TDurationD xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TDurationDelta xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TInterPeriod xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TProbabilityD xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TProbabilityDelta xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TStartPeriod xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TStimD xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TStimDelta xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TimeDeliveryP>0</d2p1:TimeDeliveryP>
+      <d2p1:TimeMagnitude>0</d2p1:TimeMagnitude>
+      <d2p1:TimePelletP>0</d2p1:TimePelletP>
+      <d2p1:TimeReinforcer i:nil="true" />
+      <d2p1:TimeScheduleType i:nil="true" />
+      <d2p1:TimeScheduleValue>0</d2p1:TimeScheduleValue>
+      <d2p1:YokedEnabled>false</d2p1:YokedEnabled>
+      <d2p1:YokedReference i:nil="true" />
+    </d2p1:Module1.ComponentBlueprint>
+    <d2p1:Module1.ComponentBlueprint>
+      <d2p1:COD>0</d2p1:COD>
+      <d2p1:ComponentDuration>0</d2p1:ComponentDuration>
+      <d2p1:ComponentDuration_measured xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:ComponentIteration>0</d2p1:ComponentIteration>
+      <d2p1:ComponentLightIntermittency>0</d2p1:ComponentLightIntermittency>
+      <d2p1:ComponentName i:nil="true" />
+      <d2p1:ComponentStimDuration>0</d2p1:ComponentStimDuration>
+      <d2p1:ComponentStimType i:nil="true" />
+      <d2p1:DelayDuration xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:DelayRetract xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:DelaySignalDuration xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:DelayType xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:DeliveryP xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:FeedbackDuration xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:FeedbackType xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:HouselightOnOff>false</d2p1:HouselightOnOff>
+      <d2p1:InputCount>0</d2p1:InputCount>
+      <d2p1:InputName xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:IterationsLeft>0</d2p1:IterationsLeft>
+      <d2p1:LagEnabled>false</d2p1:LagEnabled>
+      <d2p1:LagHistoryReference i:nil="true" />
+      <d2p1:LagMaxSequences>0</d2p1:LagMaxSequences>
+      <d2p1:LagSequenceLength>0</d2p1:LagSequenceLength>
+      <d2p1:LagTimeoutSeconds>0</d2p1:LagTimeoutSeconds>
+      <d2p1:LagTimeoutTone>false</d2p1:LagTimeoutTone>
+      <d2p1:LagUseTimeout>false</d2p1:LagUseTimeout>
+      <d2p1:LagValue>0</d2p1:LagValue>
+      <d2p1:Magnitude xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:MaxRefs>0</d2p1:MaxRefs>
+      <d2p1:PelletP xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:Reinforcer xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:ScheduleType xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:ScheduleValue xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TCycles xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TDurationD xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TDurationDelta xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TInterPeriod xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TProbabilityD xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TProbabilityDelta xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TStartPeriod xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TStimD xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TStimDelta xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TimeDeliveryP>0</d2p1:TimeDeliveryP>
+      <d2p1:TimeMagnitude>0</d2p1:TimeMagnitude>
+      <d2p1:TimePelletP>0</d2p1:TimePelletP>
+      <d2p1:TimeReinforcer i:nil="true" />
+      <d2p1:TimeScheduleType i:nil="true" />
+      <d2p1:TimeScheduleValue>0</d2p1:TimeScheduleValue>
+      <d2p1:YokedEnabled>false</d2p1:YokedEnabled>
+      <d2p1:YokedReference i:nil="true" />
+    </d2p1:Module1.ComponentBlueprint>
+    <d2p1:Module1.ComponentBlueprint>
+      <d2p1:COD>0</d2p1:COD>
+      <d2p1:ComponentDuration>0</d2p1:ComponentDuration>
+      <d2p1:ComponentDuration_measured xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:ComponentIteration>0</d2p1:ComponentIteration>
+      <d2p1:ComponentLightIntermittency>0</d2p1:ComponentLightIntermittency>
+      <d2p1:ComponentName i:nil="true" />
+      <d2p1:ComponentStimDuration>0</d2p1:ComponentStimDuration>
+      <d2p1:ComponentStimType i:nil="true" />
+      <d2p1:DelayDuration xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:DelayRetract xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:DelaySignalDuration xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:DelayType xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:DeliveryP xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:FeedbackDuration xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:FeedbackType xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:HouselightOnOff>false</d2p1:HouselightOnOff>
+      <d2p1:InputCount>0</d2p1:InputCount>
+      <d2p1:InputName xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:IterationsLeft>0</d2p1:IterationsLeft>
+      <d2p1:LagEnabled>false</d2p1:LagEnabled>
+      <d2p1:LagHistoryReference i:nil="true" />
+      <d2p1:LagMaxSequences>0</d2p1:LagMaxSequences>
+      <d2p1:LagSequenceLength>0</d2p1:LagSequenceLength>
+      <d2p1:LagTimeoutSeconds>0</d2p1:LagTimeoutSeconds>
+      <d2p1:LagTimeoutTone>false</d2p1:LagTimeoutTone>
+      <d2p1:LagUseTimeout>false</d2p1:LagUseTimeout>
+      <d2p1:LagValue>0</d2p1:LagValue>
+      <d2p1:Magnitude xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:MaxRefs>0</d2p1:MaxRefs>
+      <d2p1:PelletP xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:Reinforcer xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:ScheduleType xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:ScheduleValue xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TCycles xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TDurationD xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TDurationDelta xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TInterPeriod xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TProbabilityD xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TProbabilityDelta xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TStartPeriod xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TStimD xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TStimDelta xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TimeDeliveryP>0</d2p1:TimeDeliveryP>
+      <d2p1:TimeMagnitude>0</d2p1:TimeMagnitude>
+      <d2p1:TimePelletP>0</d2p1:TimePelletP>
+      <d2p1:TimeReinforcer i:nil="true" />
+      <d2p1:TimeScheduleType i:nil="true" />
+      <d2p1:TimeScheduleValue>0</d2p1:TimeScheduleValue>
+      <d2p1:YokedEnabled>false</d2p1:YokedEnabled>
+      <d2p1:YokedReference i:nil="true" />
+    </d2p1:Module1.ComponentBlueprint>
+    <d2p1:Module1.ComponentBlueprint>
+      <d2p1:COD>0</d2p1:COD>
+      <d2p1:ComponentDuration>0</d2p1:ComponentDuration>
+      <d2p1:ComponentDuration_measured xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:ComponentIteration>0</d2p1:ComponentIteration>
+      <d2p1:ComponentLightIntermittency>0</d2p1:ComponentLightIntermittency>
+      <d2p1:ComponentName i:nil="true" />
+      <d2p1:ComponentStimDuration>0</d2p1:ComponentStimDuration>
+      <d2p1:ComponentStimType i:nil="true" />
+      <d2p1:DelayDuration xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:DelayRetract xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:DelaySignalDuration xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:DelayType xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:DeliveryP xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:FeedbackDuration xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:FeedbackType xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:HouselightOnOff>false</d2p1:HouselightOnOff>
+      <d2p1:InputCount>0</d2p1:InputCount>
+      <d2p1:InputName xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:IterationsLeft>0</d2p1:IterationsLeft>
+      <d2p1:LagEnabled>false</d2p1:LagEnabled>
+      <d2p1:LagHistoryReference i:nil="true" />
+      <d2p1:LagMaxSequences>0</d2p1:LagMaxSequences>
+      <d2p1:LagSequenceLength>0</d2p1:LagSequenceLength>
+      <d2p1:LagTimeoutSeconds>0</d2p1:LagTimeoutSeconds>
+      <d2p1:LagTimeoutTone>false</d2p1:LagTimeoutTone>
+      <d2p1:LagUseTimeout>false</d2p1:LagUseTimeout>
+      <d2p1:LagValue>0</d2p1:LagValue>
+      <d2p1:Magnitude xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:MaxRefs>0</d2p1:MaxRefs>
+      <d2p1:PelletP xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:Reinforcer xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:ScheduleType xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:ScheduleValue xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TCycles xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TDurationD xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TDurationDelta xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TInterPeriod xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TProbabilityD xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TProbabilityDelta xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TStartPeriod xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TStimD xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TStimDelta xmlns:d4p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" i:nil="true" />
+      <d2p1:TimeDeliveryP>0</d2p1:TimeDeliveryP>
+      <d2p1:TimeMagnitude>0</d2p1:TimeMagnitude>
+      <d2p1:TimePelletP>0</d2p1:TimePelletP>
+      <d2p1:TimeReinforcer i:nil="true" />
+      <d2p1:TimeScheduleType i:nil="true" />
+      <d2p1:TimeScheduleValue>0</d2p1:TimeScheduleValue>
+      <d2p1:YokedEnabled>false</d2p1:YokedEnabled>
+      <d2p1:YokedReference i:nil="true" />
+    </d2p1:Module1.ComponentBlueprint>
+  </Components>
+  <FormatVersion>5</FormatVersion>
+  <ICIDuration>5</ICIDuration>
+  <ICIEnabled>false</ICIEnabled>
+  <ICIRetractInputs>true</ICIRetractInputs>
+  <ICIStimulus>None</ICIStimulus>
+  <PostSession>10</PostSession>
+  <RandomPresentation>false</RandomPresentation>
+  <SavedAtUtc>2026-11-11T17:44:10.5869701Z</SavedAtUtc>
+  <StartDelay>5</StartDelay>
+</ReinforcementSchedulesSetup>

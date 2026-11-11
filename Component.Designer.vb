@@ -1,4 +1,4 @@
-<Global.Microsoft.VisualBasic.CompilerServices.DesignerGenerated()>
+﻿<Global.Microsoft.VisualBasic.CompilerServices.DesignerGenerated()>
 Partial Class Component
     Inherits System.Windows.Forms.Form
 
@@ -505,7 +505,7 @@ Partial Class Component
         '
         Me.cbbScheduleMode.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList
         Me.cbbScheduleMode.FormattingEnabled = True
-        Me.cbbScheduleMode.Items.AddRange(New Object() {"Classic schedules", "T Schedules"})
+        Me.cbbScheduleMode.Items.AddRange(New Object() {"Classic schedules", "T Schedules", "Lag Schedules"})
         Me.cbbScheduleMode.Location = New System.Drawing.Point(216, 22)
         Me.cbbScheduleMode.Name = "cbbScheduleMode"
         Me.cbbScheduleMode.Size = New System.Drawing.Size(150, 21)

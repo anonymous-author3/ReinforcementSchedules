@@ -1,0 +1,11 @@
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" />
+  <PropertyGroup><OutputType>WinExe</OutputType><AssemblyName>FeedbackEditorQA</AssemblyName><TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion><OutputPath>bin\EditorQA\</OutputPath><IntermediateOutputPath>obj\EditorQA\</IntermediateOutputPath><OptionExplicit>On</OptionExplicit><OptionInfer>On</OptionInfer><OptionStrict>On</OptionStrict></PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" /><Reference Include="System.Core" /><Reference Include="System.Drawing" /><Reference Include="System.Windows.Forms" />
+    <Reference Include="ReinforcementSchedules"><HintPath>..\bin\LagValidation\ReinforcementSchedules.exe</HintPath><Private>True</Private></Reference>
+    <Import Include="System" />
+    <Compile Include="ShowFeedbackEditor.vb" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.VisualBasic.targets" />
+</Project>

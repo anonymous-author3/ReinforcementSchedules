@@ -13,7 +13,7 @@ Partial Public Class ChamberSession
     Private TimeRefCount(MAX_COMPONENTS) As Integer
     Private TimeRefCount_i As Integer
     Private refRdy(MAX_INPUTS - 1) As Boolean
-    Private VIList(MAX_INPUTS - 1) As List(Of Integer)
+    Private VIList(MAX_INPUTS - 1) As List(Of Double)
     Private ObtainedDelays(MAX_INPUTS - 1) As List(Of Integer)
     Private RatioCount(MAX_INPUTS - 1) As Integer
     Private RatioGoal(MAX_INPUTS - 1) As Integer

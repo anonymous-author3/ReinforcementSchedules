@@ -36,6 +36,8 @@ Partial Public Class SetUp
                 Throw New ArgumentException("Enter a COM port such as COM3.")
             End If
             For i As Integer = 1 To vCC
+                Dim lagError As String = LagConfiguration.ValidationError(AC(i))
+                If lagError <> "" Then Throw New ArgumentException("Component " & i & ": " & lagError)
                 If AC(i).ComponentDuration <= 0 OrElse AC(i).ComponentDuration > Integer.MaxValue / 1000.0 OrElse AC(i).ComponentIteration <= 0 Then
                     Throw New ArgumentException("Component " & i & " needs a positive duration and at least one iteration.")
                 End If

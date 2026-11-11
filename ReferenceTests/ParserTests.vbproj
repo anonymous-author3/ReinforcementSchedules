@@ -1,0 +1,14 @@
+﻿<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" />
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><RootNamespace></RootNamespace><AssemblyName>ReferenceParserTests</AssemblyName>
+    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion><OutputPath>bin\Parser\</OutputPath><IntermediateOutputPath>obj\Parser\</IntermediateOutputPath>
+    <OptionExplicit>On</OptionExplicit><OptionInfer>On</OptionInfer><OptionStrict>On</OptionStrict>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System"/><Reference Include="System.Core"/>
+    <Import Include="Microsoft.VisualBasic"/><Import Include="System"/><Import Include="System.Linq"/><Import Include="System.Collections.Generic"/>
+    <Compile Include="..\SessionReferenceData.vb"><Link>SessionReferenceData.vb</Link></Compile><Compile Include="ParserTests.vb"/>
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.VisualBasic.targets" />
+</Project>

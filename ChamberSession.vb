@@ -1,10 +1,11 @@
-Imports System.Math
+﻿Imports System.Math
 Imports System.IO.Ports
 Imports System.Security.Cryptography
 Imports System.Windows.Forms.DataVisualization.Charting
 Public Class ChamberSession
     Public Arduino As SerialPort
     Private SimulationMode As Boolean = False
+    Private simulationCommands As List(Of String) = Nothing
     Private CompSequence As List(Of Integer)
     Private CompIndexSeq As Integer
     Private TimeScheduleList As New List(Of Integer)
@@ -117,7 +118,7 @@ Public Class ChamberSession
         If SessionClosed Then Return
         Try
             Dim inputIndex As Integer = CInt(DirectCast(sender, Button).Tag)
-            If IsInputAvailable(inputIndex) Then Reinforce(inputIndex, True)
+            If IsInputAvailable(inputIndex) AndAlso Not IsYokedComponent() Then Reinforce(inputIndex, True, "Manual")
         Catch ex As Exception
             FailSession(ex)
         End Try
@@ -208,6 +209,7 @@ Public Class ChamberSession
     Private Function ScheduleText(inputIndex As Integer) As String
         If AC(vCC).ScheduleType(inputIndex) = "N/A" Then Return "N/A"
         If AC(vCC).ScheduleType(inputIndex) = "Extinction" Then Return "Extinction"
+        If IsLagComponent() Then Return "Lag " & AC(vCC).LagValue & " / " & AC(vCC).LagSequenceLength & " responses"
         If AC(vCC).ScheduleType(inputIndex) = "T Schedule" Then
             Return "T Schedule TD " & AC(vCC).TDurationD(inputIndex) & " s / TΔ " &
                 AC(vCC).TDurationDelta(inputIndex) & " s / P " &
@@ -327,6 +329,8 @@ Public Class ChamberSession
     End Sub
 
     Private Function ScheduleStatusText(inputIndex As Integer) As String
+        If IsYokedComponent() Then Return If(IsInputAvailable(inputIndex), YokedStatusText(inputIndex), "N/A")
+        If IsLagComponent() Then Return If(IsInputAvailable(inputIndex), LagStatusText(), "N/A")
         If IsRatioSchedule(inputIndex) Then Return "N/A"
         If IsTSchedule(inputIndex) Then
             If TInInterPeriod(inputIndex) Then Return "Between periods"
@@ -375,7 +379,7 @@ Public Class ChamberSession
             Dim controlsEnabled As Boolean = SessionStarted AndAlso SessionEnding = False AndAlso active
             SetSimulationButton(inputIndex, controlsEnabled)
             SetManualButton("btnInputOutput" & (inputIndex + 1), inputIndex, controlsEnabled, If(active, If(PalIO(inputIndex), "Retract: ", "Insert: ") & InputLabel(inputIndex), "In/Out " & (inputIndex + 1)))
-            SetManualButton("btnInputReinforcer" & (inputIndex + 1), inputIndex, controlsEnabled AndAlso AC(vCC).Magnitude(inputIndex) > 0, If(active, "Rf: " & InputLabel(inputIndex), "Rf " & (inputIndex + 1)))
+            SetManualButton("btnInputReinforcer" & (inputIndex + 1), inputIndex, controlsEnabled AndAlso Not IsYokedComponent() AndAlso AC(vCC).Magnitude(inputIndex) > 0, If(active, "Rf: " & InputLabel(inputIndex), "Rf " & (inputIndex + 1)))
         Next
     End Sub
 
@@ -401,7 +405,10 @@ Public Class ChamberSession
     End Function
 
     Private Sub SendArduino(command As String)
-        If SimulationMode Then Exit Sub
+        If SimulationMode Then
+            If simulationCommands IsNot Nothing Then simulationCommands.Add(command)
+            Exit Sub
+        End If
         If Arduino Is Nothing OrElse Arduino.IsOpen = False Then Exit Sub
         'Arguments identify actions using the default sketch codes; remap only here.
         Arduino.WriteLine(configuration.CommandMap.Encode(command))
@@ -575,6 +582,7 @@ Public Class ChamberSession
 
 
     Private Sub BeginPrograms() 'Call this at the start of each component
+        componentPresentation += 1
 
         ' =========================================================
         ' Select component
@@ -617,16 +625,18 @@ Public Class ChamberSession
         Next
 
         WriteRawEvent("StartComponent" & vCC)
+        componentStartedTimestamp = Stopwatch.GetTimestamp()
 
         tmrComponentDuration.Interval = Math.Max(1, CInt(AC(vCC).ComponentDuration * 1000))
         AC(vCC).ComponentDuration_measured(AC(vCC).IterationsLeft) = SessionTimeSeconds
         tmrComponentDuration.Enabled = True
+        BeginLagComponent()
 
         ' =========================================================
         ' Reset per-component data
         ' =========================================================
         For inputIndex As Integer = 0 To MAX_INPUTS - 1
-            VIList(inputIndex) = New List(Of Integer)
+            VIList(inputIndex) = New List(Of Double)
         Next
         TimeScheduleList = New List(Of Integer)
 
@@ -673,10 +683,14 @@ Public Class ChamberSession
         ' Initialize schedules
         ' =========================================================
         For inputIndex As Integer = 0 To ActiveInputCount() - 1
-            InitializeSchedule(inputIndex)
-            If IsTSchedule(inputIndex) Then InitializeTSchedule(inputIndex)
+            If Not IsYokedComponent() Then
+                InitializeSchedule(inputIndex)
+                If IsTSchedule(inputIndex) Then InitializeTSchedule(inputIndex)
+            End If
         Next
-        InitializeTimeSchedule()
+        If Not IsYokedComponent() Then InitializeTimeSchedule()
+        BeginYokedComponent()
+        If SessionEnding OrElse SessionClosed Then Return
 
         ' =========================================================
         ' Update schedule logging
@@ -694,6 +708,8 @@ Public Class ChamberSession
 
         RefreshMainTables()
 
+        RefreshScheduleChartVisibility()
+        lblBoxTitle.Text = configuration.BoxName & " | " & configuration.ComPort & " | " & configuration.Subject & If(IsLagComponent(), " - Lag frequencies and transitions", " - Cumulative record")
         tmrChrt.Interval = 1000
         tmrChrt.Enabled = True
 
@@ -704,6 +720,10 @@ Public Class ChamberSession
         ' Registers a response and evaluates whether a reinforcer is available
         ' for ratio- or interval-based schedules.
 
+        If IsLagComponent() AndAlso SessionStarted AndAlso Not SessionEnding AndAlso Not tmrStart.Enabled AndAlso Not IsInputAvailable(Lever) Then
+            WriteRawEvent("LagInactiveResponse" & (Lever + 1))
+            Return
+        End If
         If SessionStarted AndAlso SessionEnding = False AndAlso tmrStart.Enabled = False AndAlso IsInputAvailable(Lever) Then
 
             ' Increment real-time response counter for plotting
@@ -717,6 +737,14 @@ Public Class ChamberSession
                 ' Responses during ICI are logged but do not affect schedules
 
             Else
+                If IsLagComponent() Then
+                    ProcessLagResponse(Lever)
+                    Return
+                End If
+                If IsYokedComponent() Then
+                    ProcessYokedClassicResponse(Lever)
+                    Return
+                End If
                 If tmrCOD.Enabled Then
                     ResponseCount(vCC, Lever) += 1
                     RefreshInputStatusTable()
@@ -789,12 +817,12 @@ Public Class ChamberSession
     Private Sub ActivateStimulus(stimulusType As String, turnOn As Boolean, Optional includeTone As Boolean = True)
         If stimulusType Is Nothing Then Exit Sub
 
-        If stimulusType.Contains("Light 1") = True Then SendArduino(If(turnOn, "A", "a"))
-        If stimulusType.Contains("Light 2") = True Then SendArduino(If(turnOn, "B", "b"))
-        If stimulusType.Contains("Light 3") = True Then SendArduino(If(turnOn, "E", "e"))
-        If stimulusType.Contains("Light 4") = True Then SendArduino(If(turnOn, "F", "f"))
-        If includeTone AndAlso stimulusType.Contains("Tone") = True Then SendArduino(If(turnOn, "T", "t"))
-        If stimulusType.Contains("Houselight") = True Then SendArduino(If(turnOn, "H", "h"))
+        If stimulusType.Contains("Light 1") AndAlso (turnOn OrElse Not LagOutputRequired("Light 1")) Then SendArduino(If(turnOn, "A", "a"))
+        If stimulusType.Contains("Light 2") AndAlso (turnOn OrElse Not LagOutputRequired("Light 2")) Then SendArduino(If(turnOn, "B", "b"))
+        If stimulusType.Contains("Light 3") AndAlso (turnOn OrElse Not LagOutputRequired("Light 3")) Then SendArduino(If(turnOn, "E", "e"))
+        If stimulusType.Contains("Light 4") AndAlso (turnOn OrElse Not LagOutputRequired("Light 4")) Then SendArduino(If(turnOn, "F", "f"))
+        If includeTone AndAlso stimulusType.Contains("Tone") AndAlso (turnOn OrElse Not LagOutputRequired("Tone")) Then SendArduino(If(turnOn, "T", "t"))
+        If stimulusType.Contains("Houselight") AndAlso (turnOn OrElse Not LagOutputRequired("Houselight")) Then SendArduino(If(turnOn, "H", "h"))
     End Sub
 
     Private Sub Ratio(Lever As Integer)
@@ -812,11 +840,17 @@ Public Class ChamberSession
         End If
     End Sub
 
-    Private Sub Reinforce(Lever As Integer, Delay As Boolean)
+    Private Sub Reinforce(Lever As Integer, Delay As Boolean, Optional source As String = "Scheduled")
 
         If Lever >= 0 AndAlso Lever < MAX_INPUTS AndAlso AC(vCC).DelayDuration(Lever) > 0 AndAlso Delay = False Then
             DelayTimers(Lever).Enabled = True
-            If AC(vCC).DelayRetract(Lever) = True Then SetInputOutput(Lever, False)
+            If AC(vCC).DelayRetract(Lever) Then
+                If IsLagComponent() Then
+                    TurnOffAllInputs()
+                Else
+                    SetInputOutput(Lever, False)
+                End If
+            End If
 
             DelayOnset(Lever) = vTimeNow
             DelayComp(Lever) = vCC
@@ -846,8 +880,9 @@ Public Class ChamberSession
             refRdy(Lever) = False
 
             Dim deliveredCount As Integer = 0
+            deliveryBatchNumber += 1
             For i = 1 To AC(vCC).Magnitude(Lever)
-                If ReinforcerDelivery(AC(vCC).Reinforcer(Lever), If(AC(vCC).DeliveryP Is Nothing, 100, AC(vCC).DeliveryP(Lever)), AC(vCC).PelletP(Lever)) Then
+                If ReinforcerDelivery(AC(vCC).Reinforcer(Lever), If(AC(vCC).DeliveryP Is Nothing, 100, AC(vCC).DeliveryP(Lever)), AC(vCC).PelletP(Lever), Lever + 1, source) Then
                     deliveredCount += 1
                     Dim seriesName As String = ReinforcerSeriesName(Lever)
                     If Chart1.Series.IndexOf(seriesName) >= 0 Then Chart1.Series(seriesName).Points.AddXY(chartTime(Lever), chartResponse(Lever))
@@ -858,12 +893,13 @@ Public Class ChamberSession
             RefreshInputStatusTable()
 
             If deliveredCount > 0 Then WriteRawEvent("R" & (Lever + 1))
+            If source = "Scheduled" AndAlso IsLagComponent() Then CompleteLagOutcome(If(deliveredCount > 0, "Delivered", "Omitted"))
 
             InitializeSchedule(Lever)
         End If
 
         ' Check component termination based on maximum reinforcers
-        If ComponentRefTotal() >= AC(vCC).MaxRefs AndAlso AC(vCC).MaxRefs > 0 Then
+        If MaximumReinforcersReached() Then
             ComponentDuration_Code()
         End If
 
@@ -876,28 +912,17 @@ Public Class ChamberSession
     End Function
 
 
-    Private Function ReinforcerDelivery(reinforcerType As String, deliveryProbability As Integer, pelletProbability As Integer) As Boolean
-        If ProbabilityHit(deliveryProbability) = False Then Return False
-
-        If reinforcerType = "Pellet" Then
-            SendArduino("R")
-            Return True
-
-        ElseIf reinforcerType = "Liquid" Then
-            SendArduino("W")
-            Return True
-
-        ElseIf reinforcerType = "Random" Then
-            If ProbabilityHit(pelletProbability) Then
-                SendArduino("R")
-            Else
-                SendArduino("W")
-            End If
-            Return True
-        End If
-
-        Return False
+    Private Function ReinforcerDelivery(reinforcerType As String, deliveryProbability As Integer, pelletProbability As Integer, Optional physicalInput As Integer = 0, Optional source As String = "Scheduled") As Boolean
+        If Not ProbabilityHit(deliveryProbability) Then Return False
+        Dim actualType As String = reinforcerType
+        If actualType = "Random" Then actualType = If(ProbabilityHit(pelletProbability), "Pellet", "Liquid")
+        If actualType <> "Pellet" AndAlso actualType <> "Liquid" Then Return False
+        If Not SimulationMode AndAlso (Arduino Is Nothing OrElse Not Arduino.IsOpen) Then Throw New IO.IOException("Reinforcer command cannot be sent: the chamber connection is closed.")
+        SendArduino(If(actualType = "Pellet", "R", "W"))
+        RecordDeliveredReinforcer(physicalInput, actualType, source)
+        Return True
     End Function
+
 
     Private Sub FRGen(x) 'This initializes Fixed Ratio schedules depending on the selected values / operanda.
         'FR schedules just check current responses against the specified schedule value.
@@ -909,41 +934,21 @@ Public Class ChamberSession
         Dim maxGoal As Integer = Math.Max(minGoal + 1, CInt(Math.Ceiling(AC(vCC).ScheduleValue(x) * 1.5)))
         RatioGoal(x) = SessionRandom.Next(minGoal, maxGoal + 1)
     End Sub
-    Private Sub FIGen(x) 'This initializes Fixed Interval schedules depending on the selected values / operanda.
-        'FI schedules use a timer to check if the specified schedule value has elapsed.
-        'Visual Basic manages time in miliseconds, so values are multiplied by 1000.
-        ScheduleTimers(x).Interval = Math.Max(1, (AC(vCC).ScheduleValue(x) + 1) * 1000)
-        ScheduleTimers(x).Enabled = True
+    Private Sub FIGen(inputIndex As Integer)
+        ScheduleTimers(inputIndex).Interval = IntervalScheduleTiming.ToTimerMilliseconds(AC(vCC).ScheduleValue(inputIndex))
+        ScheduleTimers(inputIndex).Enabled = True
     End Sub
-    Private Sub VIGen(list As Integer) 'This initializes Variable Interval schedules depending on the selected values / operanda.
-        'VI schedules employ Hantula's (1991) method for Fleshler & Hoffman's (1968) iterative equation on Visual Basic.
-        'This Subroutine takes 'list' as a value to allocate VI iterations on separate data arrays, allowing for concurrent and independent VI schedules.
-        'VI values are selected at random from the lists without replacement.
-        Dim v As Integer
-        Dim n = 10 'This value represents the VI iterations.
-        Dim rd(n)
-        Dim vi(n)
-        Dim order
-        v = AC(vCC).ScheduleValue(list)
-        If VIList(list).Count = 0 Then
-            For m As Integer = 1 To n
-                If m = n Then vi(m) = v * (1 + Log(n)) : GoTo 1
-                vi(m) = v * (1 + (Log(n)) + (n - m) * (Log(n - m)) - (n - m + 1) * Log(n - m + 1))
-1:              order = SessionRandom.Next(1, n + 1)
-                If rd(order) = 0 Then
-                    rd(order) = vi(m)
-                Else
-                    GoTo 1
-                End If
-            Next
-            For a As Integer = 1 To n
-                VIList(list).Add(rd(a))
-            Next
+
+    Private Sub VIGen(inputIndex As Integer)
+        'Fleshler-Hoffman list of 10 intervals. Keep fractional seconds until timer conversion.
+        'Uniform random selection/removal itself produces a permutation without replacement.
+        If VIList(inputIndex).Count = 0 Then
+            VIList(inputIndex).AddRange(IntervalScheduleTiming.GenerateVariableSeconds(AC(vCC).ScheduleValue(inputIndex)))
         End If
-        Dim p As Integer = SessionRandom.Next(VIList(list).Count)
-        ScheduleTimers(list).Interval = Math.Max(1, (VIList(list).Item(p) + 1) * 1000)
-        ScheduleTimers(list).Enabled = True
-        VIList(list).RemoveAt(p)
+        Dim selected As Integer = SessionRandom.Next(VIList(inputIndex).Count)
+        ScheduleTimers(inputIndex).Interval = IntervalScheduleTiming.ToTimerMilliseconds(VIList(inputIndex)(selected))
+        ScheduleTimers(inputIndex).Enabled = True
+        VIList(inputIndex).RemoveAt(selected)
     End Sub
 
     Private Function TStimulus(inputIndex As Integer) As String
@@ -1101,8 +1106,9 @@ RetryOrder:
             If NormalizedTimeScheduleType() <> "fixed time" AndAlso NormalizedTimeScheduleType() <> "variable time" Then Exit Sub
 
             Dim deliveredCount As Integer = 0
+            deliveryBatchNumber += 1
             For i As Integer = 1 To Math.Max(1, AC(vCC).TimeMagnitude)
-                If ReinforcerDelivery(AC(vCC).TimeReinforcer, AC(vCC).TimeDeliveryP, AC(vCC).TimePelletP) Then deliveredCount += 1
+                If ReinforcerDelivery(AC(vCC).TimeReinforcer, AC(vCC).TimeDeliveryP, AC(vCC).TimePelletP, 0, "Time") Then deliveredCount += 1
             Next
 
             If deliveredCount > 0 Then
@@ -1112,7 +1118,7 @@ RetryOrder:
                 RefreshInputStatusTable()
             End If
 
-            If ComponentRefTotal() >= AC(vCC).MaxRefs AndAlso AC(vCC).MaxRefs > 0 Then
+            If MaximumReinforcersReached() Then
                 ComponentDuration_Code()
             Else
                 ScheduleNextTimeReinforcer()
@@ -1154,10 +1160,11 @@ RetryOrder:
         CloseConnection()
         Try
             Try
-                Chart1.SaveImage(chartPath, ChartImageFormat.Png)
+                SaveScheduleChart(chartPath)
             Catch ex As Exception
                 WriteLine(2, "Chart export failed: " & ex.Message)
             End Try
+            MarkReferenceClosed(If(currentStatus.StartsWith("Error"), "Error", "Completed"))
             WriteSessionSummary()
             If Not currentStatus.StartsWith("Error") Then currentStatus = "Completed"
         Catch ex As Exception
@@ -1167,11 +1174,13 @@ RetryOrder:
             FileClose(2)
             finalizing = False
         End Try
+        QueueFinishedSession()
         RefreshMainTables(currentStatus)
     End Sub
 
     Private Sub WriteSessionSummary()
         FileClose(1)
+        WriteLagSummary()
 
         If HasAnyObtainedDelay() Then
             ' ---------------------------------------------------------
@@ -1359,6 +1368,11 @@ RetryOrder:
             UpdateSessionClock()
             Dim inputIndex As Integer = InputTimerIndex(DelayTimers, sender)
             If inputIndex < 0 Then Exit Sub
+            If Not DelayTimers(inputIndex).Enabled Then Return
+            If IsLagComponent() Then
+                CompleteLagDelay(inputIndex)
+                Return
+            End If
 
             DelayTimers(inputIndex).Enabled = False
             DelaySignalStartTimers(inputIndex).Enabled = False
@@ -1387,9 +1401,11 @@ RetryOrder:
             UpdateSessionClock()
             Dim inputIndex As Integer = InputTimerIndex(DelaySignalTimers, sender)
             If inputIndex < 0 Then Exit Sub
+            If Not DelaySignalTimers(inputIndex).Enabled Then Return
 
             DelaySignalTimers(inputIndex).Enabled = False
             ActivateStimulus(AC(vCC).DelayType(inputIndex), False)
+            If IsLagComponent() Then RestoreLagStimuli()
         Catch ex As Exception
             FailSession(ex)
         End Try
@@ -1401,6 +1417,7 @@ RetryOrder:
             UpdateSessionClock()
             Dim inputIndex As Integer = InputTimerIndex(DelaySignalStartTimers, sender)
             If inputIndex < 0 Then Exit Sub
+            If Not DelaySignalStartTimers(inputIndex).Enabled Then Return
 
             DelaySignalStartTimers(inputIndex).Enabled = False
             If DelayTimers(inputIndex).Enabled = False Then Exit Sub
@@ -1419,9 +1436,14 @@ RetryOrder:
             UpdateSessionClock()
             Dim inputIndex As Integer = InputTimerIndex(FeedbackTimers, sender)
             If inputIndex < 0 Then Exit Sub
+            If Not FeedbackTimers(inputIndex).Enabled Then Return
 
             FeedbackTimers(inputIndex).Enabled = False
             ActivateStimulus(AC(vCC).FeedbackType(inputIndex), False)
+            If IsLagComponent() Then
+                RestoreLagStimuli()
+                Return
+            End If
 
             If AC(vCC).FeedbackType(inputIndex).Contains("Time Out") = True Then
                 For activeInput As Integer = 0 To ActiveInputCount() - 1
@@ -1525,6 +1547,7 @@ RetryOrder:
     End Sub
 
     Private Sub ComponentDuration_Code()
+        StopLagActivity("ComponentEnd")
         'This routine handles the formal termination of a component.
         'It logs the component end, computes the actual component duration,
         'clears component-related UI elements, and initiates the inter-component interval (ICI).
@@ -1593,6 +1616,7 @@ RetryOrder:
             UpdateSessionClock()
             ComponentToneStimOn = Not ComponentToneStimOn
             ActivateStimulus("Tone", ComponentToneStimOn)
+            If IsLagComponent() Then RestoreLagStimuli()
         Catch ex As Exception
             FailSession(ex)
         End Try
@@ -1604,6 +1628,7 @@ RetryOrder:
             UpdateSessionClock()
             ComponentLightStimOn = Not ComponentLightStimOn
             ActivateStimulus(AC(vCC).ComponentStimType, ComponentLightStimOn, False)
+            If IsLagComponent() Then RestoreLagStimuli()
         Catch ex As Exception
             FailSession(ex)
         End Try

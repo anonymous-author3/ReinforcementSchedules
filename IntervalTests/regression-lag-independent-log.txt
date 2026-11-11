@@ -1,0 +1,1 @@
+PASS: 15049 independent assertions; pure engine + deterministic oracle + XML compatibility. No hardware, network, or experimental data used.
