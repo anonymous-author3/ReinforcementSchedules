@@ -168,6 +168,10 @@
       <SubType>UserControl</SubType>
     </Compile>
     <Compile Include="ChamberConfiguration.vb" />
+    <Compile Include="ChainScheduleConfiguration.vb" />
+    <Compile Include="ChainScheduleEditor.vb" />
+    <Compile Include="Component.Chains.vb" />
+    <Compile Include="ChamberSession.Chains.vb" />
     <Compile Include="My Project\AssemblyInfo.vb" />
     <Compile Include="My Project\Application.Designer.vb">
       <AutoGen>True</AutoGen>

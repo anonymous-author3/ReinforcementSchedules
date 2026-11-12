@@ -1,4 +1,4 @@
-Imports System.Drawing
+﻿Imports System.Drawing
 Imports System.IO
 Imports System.Net
 Imports System.Net.Http
@@ -54,8 +54,12 @@ Module StorageTests
         Next
         components(1) = DirectCast(boxed, ComponentBlueprint)
         components(1).InputName(0) = "Left lever"
-        components(1).ScheduleType(0) = "Fixed ratio"
+        components(1).ScheduleType(0) = "Fixed Ratio"
         components(1).ScheduleValue(0) = 5
+        components(1).ClassicChains(0) = New ClassicChainDefinition With {.Links = New List(Of ClassicChainLink) From {New ClassicChainLink With {.ScheduleType = "Fixed Ratio", .Value = 5}, New ClassicChainLink With {.ScheduleType = "Variable Time", .Value = 10, .VariableValueCount = 7, .RetractInput = True, .StimulusType = "Tone"}}}
+        components(1).ClassicChains(4) = components(1).ClassicChains(0).Copy()
+        components(1).ScheduleType(4) = "Fixed Ratio"
+        components(1).ScheduleValue(4) = 5
         Return New SetupSaveData With {
             .BoxName = "Box A", .SavedAtUtc = DateTime.UtcNow, .StartDelay = "0", .PostSession = "0", .ICIDuration = "5",
             .ICIEnabled = True, .ICIRetractInputs = True, .ICIStimulus = "None", .ComponentOrder = "1,1",

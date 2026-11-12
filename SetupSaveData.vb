@@ -9,7 +9,7 @@ Imports System.Web.Script.Serialization
 <DataContract(Name:="ReinforcementSchedulesSetup", [Namespace]:="urn:reinforcement-schedules:setup")>
 Friend Class SetupSaveData
     <DataMember(IsRequired:=True)>
-    Public Property FormatVersion As Integer = 6
+    Public Property FormatVersion As Integer = 8
     <DataMember(IsRequired:=True)>
     Public Property SavedAtUtc As DateTime
     <DataMember(IsRequired:=True)>
@@ -41,7 +41,7 @@ Friend Class SetupSaveData
 
     Public Sub Validate()
         'Version 1 files may contain per-box details; those members are ignored on load.
-        If FormatVersion < 1 OrElse FormatVersion > 6 Then Throw New InvalidDataException("This setup file uses an unsupported version.")
+        If FormatVersion < 1 OrElse FormatVersion > 8 Then Throw New InvalidDataException("This setup file uses an unsupported version.")
         For Each field As PropertyInfo In GetType(SetupSaveData).GetProperties()
             If field.Name = NameOf(LegacyLeverLetters) Then Continue For
             If field.PropertyType Is GetType(String) AndAlso field.GetValue(Me) Is Nothing Then
@@ -58,6 +58,9 @@ Friend Class SetupSaveData
         End If
         For componentIndex As Integer = 1 To ComponentCount
             Dim component As ComponentBlueprint = Components(componentIndex)
+            IntervalScheduleTiming.NormalizeLegacyCounts(component)
+            ClassicChainConfiguration.NormalizeLegacy(component)
+            Components(componentIndex) = component
             If component.InputCount < 1 OrElse component.InputCount > MAX_INPUTS Then
                 Throw New InvalidDataException("Invalid input count in component " & componentIndex & ".")
             End If
@@ -68,6 +71,8 @@ Friend Class SetupSaveData
                     Throw New InvalidDataException("Incomplete " & field.Name & " in component " & componentIndex & ".")
                 End If
             Next
+            Dim chainError = ClassicChainConfiguration.ValidationError(component)
+            If chainError <> "" Then Throw New InvalidDataException("Component " & componentIndex & ": " & chainError)
             Dim intervalError As String = IntervalScheduleTiming.ValidationError(component)
             If intervalError <> "" Then Throw New InvalidDataException("Component " & componentIndex & ": " & intervalError)
             Dim referenceError As String = ReferenceConfiguration.ValidationError(component)
@@ -172,6 +177,32 @@ Friend Class SetupSaveData
         For index As Integer = 1 To count
             Dim componentFields = TryCast(rawComponents(index), Dictionary(Of String, Object))
             If componentFields Is Nothing Then Throw New InvalidDataException("Missing component " & index & ".")
+            If Convert.ToInt32(fields("FormatVersion")) >= 7 AndAlso
+                (Not componentFields.ContainsKey("VariableValueCount") OrElse componentFields("VariableValueCount") Is Nothing OrElse
+                 Not componentFields.ContainsKey("TimeVariableValueCount") OrElse Convert.ToInt32(componentFields("TimeVariableValueCount")) < 1) Then
+                Throw New InvalidDataException("Missing variable series counts in component " & index & ".")
+            End If
+            If Convert.ToInt32(fields("FormatVersion")) >= 8 AndAlso (Not componentFields.ContainsKey("ClassicChains") OrElse componentFields("ClassicChains") Is Nothing) Then
+                Throw New InvalidDataException("Missing classic chain settings in component " & index & ".")
+            End If
+            If componentFields.ContainsKey("ClassicChains") AndAlso componentFields("ClassicChains") IsNot Nothing Then
+                Dim chains = TryCast(componentFields("ClassicChains"), System.Collections.IList)
+                If chains Is Nothing OrElse chains.Count <> MAX_INPUTS Then Throw New InvalidDataException("Incomplete classic chains in component " & index)
+                For Each rawChain In chains
+                    If rawChain Is Nothing Then Continue For
+                    Dim chain = TryCast(rawChain, Dictionary(Of String, Object))
+                    If chain Is Nothing OrElse Not chain.ContainsKey("Links") Then Throw New InvalidDataException("Missing chain links.")
+                    Dim links = TryCast(chain("Links"), System.Collections.IList)
+                    If links Is Nothing OrElse links.Count > 100 Then Throw New InvalidDataException("Invalid chain links.")
+                    For Each rawLink In links
+                        Dim link = TryCast(rawLink, Dictionary(Of String, Object))
+                        If link Is Nothing Then Throw New InvalidDataException("Missing chain link.")
+                        For Each name In {"ScheduleType", "Value", "VariableValueCount", "StimulusType", "LightIntermittency", "ToneIntermittency", "RetractInput"}
+                            If Not link.ContainsKey(name) OrElse link(name) Is Nothing Then Throw New InvalidDataException("Missing chain link value: " & name)
+                        Next
+                    Next
+                Next
+            End If
             For Each field In GetType(ComponentBlueprint).GetFields(BindingFlags.Instance Or BindingFlags.Public)
                 If field.FieldType.IsValueType AndAlso Not Attribute.IsDefined(field, GetType(OptionalFieldAttribute)) AndAlso
                     (Not componentFields.ContainsKey(field.Name) OrElse componentFields(field.Name) Is Nothing) Then

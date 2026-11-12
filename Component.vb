@@ -2,6 +2,37 @@
 
 Public Class Component
 
+    Private ReadOnly variableValues As New NumericUpDown With {.Minimum = 1, .Maximum = 1000, .Value = 10, .Name = "variableValues"}
+    Private ReadOnly variableValuesLabel As New Label With {.Text = "Series values:", .AutoSize = True}
+    Private ReadOnly timeVariableValues As New NumericUpDown With {.Minimum = 1, .Maximum = 1000, .Value = 10, .Name = "timeVariableValues"}
+    Private ReadOnly timeVariableValuesLabel As New Label With {.Text = "Series values:", .AutoSize = True}
+
+    Private Sub InitializeVariableControls()
+        variableValuesLabel.Location = New Drawing.Point(240, 104)
+        variableValues.Location = New Drawing.Point(325, 101)
+        variableValues.Width = 65
+        GroupBox1.Controls.Add(variableValuesLabel)
+        GroupBox1.Controls.Add(variableValues)
+        timeVariableValuesLabel.Location = New Drawing.Point(12, 215)
+        timeVariableValues.Location = New Drawing.Point(105, 212)
+        timeVariableValues.Width = 70
+        grpTimeSchedule.Controls.Add(timeVariableValuesLabel)
+        grpTimeSchedule.Controls.Add(timeVariableValues)
+        Dim explanation = "Number of Fleshler-Hoffman values (1-1000), sampled without replacement and refilled after use. Not component repetitions. VR uses positive integer requirements adjusted to preserve the requested mean."
+        ComponentToolTip.SetToolTip(variableValues, explanation)
+        ComponentToolTip.SetToolTip(timeVariableValues, explanation)
+        UpdateVariableControls()
+    End Sub
+
+    Private Sub UpdateVariableControls() Handles rdoVRL1.CheckedChanged, rdoVIL1.CheckedChanged
+        If chkVariableTime Is Nothing OrElse rdoVRL1 Is Nothing OrElse rdoVIL1 Is Nothing Then Return
+        Dim enabled = Not IsTScheduleMode() AndAlso Not IsLagScheduleMode() AndAlso (rdoVRL1.Checked OrElse rdoVIL1.Checked)
+        variableValues.Visible = enabled
+        variableValuesLabel.Visible = enabled
+        timeVariableValues.Visible = chkVariableTime.Checked
+        timeVariableValuesLabel.Visible = chkVariableTime.Checked
+    End Sub
+
     Private ComponentStimType As String = ""
     Private HouselightOnOff As Boolean = False
     Private ReadOnly AddedInputs As New List(Of ComponentInputConfiguration)
@@ -10,7 +41,9 @@ Public Class Component
     Private Class ComponentInputConfiguration
         Public Property Name As String
         Public Property ScheduleType As String
+        Public Property Chain As ClassicChainDefinition
         Public Property ScheduleValue As Integer
+        Public Property VariableValueCount As Integer = 10
         Public Property Reinforcer As String
         Public Property Magnitude As Integer
         Public Property DeliveryP As Integer
@@ -76,6 +109,7 @@ Public Class Component
 
     Private Function GetSelectedScheduleType() As String
         If IsLagScheduleMode() Then Return "Lag"
+        If Not IsTScheduleMode() AndAlso currentChain IsNot Nothing AndAlso currentChain.Links.Count > 0 Then Return currentChain.Links(0).ScheduleType
         If cbbScheduleMode IsNot Nothing AndAlso cbbScheduleMode.Text = "T Schedules" Then Return "T Schedule"
         If rdoNAL1.Checked Then Return "N/A"
         If rdoFRL1.Checked Then Return "Fixed Ratio"
@@ -244,6 +278,7 @@ Public Class Component
 
     Private Sub TimeReinforcer_SelectedIndexChanged(sender As Object, e As EventArgs) Handles cbbTimeReinforcer.SelectedIndexChanged
         UpdateTimeReinforcerState()
+        UpdateVariableControls()
     End Sub
 
     Private Sub UpdateTimeScheduleState()
@@ -253,6 +288,7 @@ Public Class Component
         txbTimeMagnitude.Enabled = enabled
         txbTimeDeliveryProbability.Enabled = enabled
         UpdateTimeReinforcerState()
+        UpdateVariableControls()
     End Sub
 
     Private Sub UpdateTimeReinforcerState()
@@ -274,8 +310,10 @@ Public Class Component
 
         Return New ComponentInputConfiguration With {
             .Name = inputName,
+            .Chain = If(IsTScheduleMode() OrElse IsLagScheduleMode() OrElse currentChain Is Nothing, Nothing, currentChain.Copy()),
             .ScheduleType = scheduleType,
-            .ScheduleValue = If(noInputProgram OrElse isTSchedule, 0, ToIntSafe(txbValueL1.Text, 0)),
+            .VariableValueCount = If(currentChain IsNot Nothing AndAlso Not isTSchedule AndAlso Not IsLagScheduleMode(), currentChain.Links(0).VariableValueCount, CInt(variableValues.Value)),
+            .ScheduleValue = If(currentChain IsNot Nothing AndAlso Not isTSchedule AndAlso Not IsLagScheduleMode(), CInt(Math.Ceiling(currentChain.Links(0).Value)), If(noInputProgram OrElse isTSchedule, 0, ToIntSafe(txbValueL1.Text, 0))),
             .Reinforcer = If(noInputProgram, "N/A", ToStrSafe(cbbReinforcer1.Text, "Pellet")),
             .Magnitude = If(noInputProgram, 0, ToIntSafe(txbMagL1.Text, 0)),
             .DeliveryP = If(noInputProgram, 0, ToIntSafe(txbDeliveryProbability1.Text, 100)),
@@ -291,10 +329,10 @@ Public Class Component
             .TStimDelta = If(isTSchedule, CheckedListText(clbTDeltaStim), "None"),
             .FeedbackDuration = If(HasFeedbackSelection(), ToDoubleSafe(txbStimDurL1.Text, 1), 0),
             .FeedbackType = GetSelectedFeedbackType(),
-            .DelayDuration = If(HasDelaySelection(), ToDoubleSafe(txbDelayDurL1.Text, 1), 0),
-            .DelayType = GetSelectedDelayType(),
-            .DelayRetract = chkRetractL1.Checked,
-            .DelaySignalDuration = If(chkUnsignaledDelay.Checked, 0, ToDoubleSafe(txbDelaySignalDurationL1.Text, 0))
+            .DelayDuration = If((IsTScheduleMode() OrElse IsLagScheduleMode()) AndAlso HasDelaySelection(), ToDoubleSafe(txbDelayDurL1.Text, 1), 0),
+            .DelayType = If(IsTScheduleMode() OrElse IsLagScheduleMode(), GetSelectedDelayType(), "None"),
+            .DelayRetract = (IsTScheduleMode() OrElse IsLagScheduleMode()) AndAlso chkRetractL1.Checked,
+            .DelaySignalDuration = If(Not IsTScheduleMode() AndAlso Not IsLagScheduleMode(), 0, If(chkUnsignaledDelay.Checked, 0, ToDoubleSafe(txbDelaySignalDurationL1.Text, 0)))
         }
     End Function
 
@@ -326,6 +364,7 @@ Public Class Component
     End Function
 
     Private Function InputSummary(inputInfo As ComponentInputConfiguration) As String
+        If inputInfo.Chain IsNot Nothing Then Return inputInfo.Name & " - " & ClassicChainConfiguration.Summary(inputInfo.Chain)
         If inputInfo.ScheduleType = "Extinction" Then
             Return inputInfo.Name & " - Extinction / N/A"
         End If
@@ -339,7 +378,7 @@ Public Class Component
         End If
 
         Return inputInfo.Name & " - " & inputInfo.ScheduleType & " " & inputInfo.ScheduleValue &
-            " / " & inputInfo.Magnitude & " " & inputInfo.Reinforcer & " / Deliver " & inputInfo.DeliveryP & "%"
+            If(inputInfo.ScheduleType.StartsWith("Variable"), " (" & inputInfo.VariableValueCount & " values)", "") & " / " & inputInfo.Magnitude & " " & inputInfo.Reinforcer & " / Deliver " & inputInfo.DeliveryP & "%"
     End Function
 
     Private Sub UpdateTTotal()
@@ -380,6 +419,8 @@ Public Class Component
         UpdateLagModeState()
         UpdateExtinctionState()
         UpdateTTotal()
+        UpdateVariableControls()
+        UpdateChainEditorState()
     End Sub
 
     Private Sub UpdateExtinctionState()
@@ -408,6 +449,8 @@ Public Class Component
     End Sub
 
     Private Sub ResetInputEditor()
+        currentChain = Nothing
+        variableValues.Value = 10
         txbInputName.Text = "Arduino Pin " & (AddedInputs.Count + 2)
         If cbbScheduleMode.Items.Count > 0 Then cbbScheduleMode.SelectedIndex = 0
         rdoExt1.Checked = True
@@ -458,7 +501,13 @@ Public Class Component
         End If
 
         Dim inputInfo As ComponentInputConfiguration = BuildInputFromEditor(AddedInputs.Count + 1)
-        Dim intervalError As String = IntervalScheduleTiming.ValidationError(inputInfo.ScheduleType, inputInfo.ScheduleValue)
+        Dim intervalError As String = If(inputInfo.Chain Is Nothing, IntervalScheduleTiming.ValidationError(inputInfo.ScheduleType, inputInfo.ScheduleValue, inputInfo.VariableValueCount), "")
+        If inputInfo.Chain IsNot Nothing Then
+            For Each link In inputInfo.Chain.Links
+                intervalError = ClassicChainConfiguration.LinkError(link)
+                If intervalError <> "" Then Exit For
+            Next
+        End If
         If intervalError <> "" Then
             MsgBox(intervalError)
             Exit Sub
@@ -583,6 +632,8 @@ Public Class Component
             Exit Sub
         End If
 
+        If Not ConfirmChainWarnings() Then Exit Sub
+
         Dim longestTDuration As Double = 0
         For Each inputInfo As ComponentInputConfiguration In AddedInputs
             If inputInfo.ScheduleType = "T Schedule" Then
@@ -615,6 +666,7 @@ Public Class Component
         AC(vCC).ComponentLightIntermittency = componentLightIntermittencySec
         AC(vCC).ComponentStimDuration = componentToneIntermittencySec
         AC(vCC).ComponentStimType = ComponentStimType
+        AC(vCC).TimeVariableValueCount = CInt(timeVariableValues.Value)
         AC(vCC).TimeScheduleType = SelectedTimeScheduleType()
         AC(vCC).TimeScheduleValue = If(AC(vCC).TimeScheduleType = "None", 0, ToDoubleSafe(txbTimeScheduleValue.Text, 0))
         AC(vCC).TimeReinforcer = If(AC(vCC).TimeScheduleType = "None", "N/A", ToStrSafe(cbbTimeReinforcer.Text, "Pellet"))
@@ -622,6 +674,11 @@ Public Class Component
         AC(vCC).TimeDeliveryP = If(AC(vCC).TimeScheduleType = "None", 0, ToIntSafe(txbTimeDeliveryProbability.Text, 100))
         AC(vCC).TimePelletP = If(AC(vCC).TimeScheduleType = "None", 0, If(AC(vCC).TimeReinforcer = "Random", ToIntSafe(txbTimePelletProbability.Text, 50), 0))
 
+        Dim timeError = IntervalScheduleTiming.TimeValidationError(AC(vCC).TimeScheduleType, AC(vCC).TimeScheduleValue, AC(vCC).TimeVariableValueCount)
+        If timeError <> "" Then
+            MsgBox(timeError)
+            Exit Sub
+        End If
         If AC(vCC).TimeScheduleType <> "None" Then
             If AC(vCC).TimeScheduleValue <= 0 Then
                 MsgBox("Please enter a time schedule value greater than 0.")
@@ -648,7 +705,9 @@ Public Class Component
 
         ReDim AC(vCC).InputName(MAX_INPUTS - 1)
         ReDim AC(vCC).ScheduleType(MAX_INPUTS - 1)
+        ReDim AC(vCC).ClassicChains(MAX_INPUTS - 1)
         ReDim AC(vCC).ScheduleValue(MAX_INPUTS - 1)
+        ReDim AC(vCC).VariableValueCount(MAX_INPUTS - 1)
         ReDim AC(vCC).Magnitude(MAX_INPUTS - 1)
         ReDim AC(vCC).Reinforcer(MAX_INPUTS - 1)
         ReDim AC(vCC).DeliveryP(MAX_INPUTS - 1)
@@ -684,7 +743,9 @@ Public Class Component
         For i As Integer = 0 To MAX_INPUTS - 1
             AC(vCC).InputName(i) = storedInputs(i).Name
             AC(vCC).ScheduleType(i) = storedInputs(i).ScheduleType
+            AC(vCC).ClassicChains(i) = If(storedInputs(i).Chain Is Nothing, Nothing, storedInputs(i).Chain.Copy())
             AC(vCC).ScheduleValue(i) = storedInputs(i).ScheduleValue
+            AC(vCC).VariableValueCount(i) = storedInputs(i).VariableValueCount
             AC(vCC).Reinforcer(i) = storedInputs(i).Reinforcer
             AC(vCC).Magnitude(i) = storedInputs(i).Magnitude
             AC(vCC).DeliveryP(i) = storedInputs(i).DeliveryP
@@ -725,6 +786,8 @@ Public Class Component
     Private Sub Component_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         componentEditorSlot = CInt(vCC)
         InitializeLagEditor()
+        InitializeVariableControls()
+        InitializeChainEditor()
         Me.AutoScroll = False
         Me.StartPosition = FormStartPosition.CenterParent
         GroupBox1.Text = "Input"
@@ -752,9 +815,9 @@ Public Class Component
         ComponentToolTip.SetToolTip(rdoExt1, "Extinction: the input is available, responses are recorded, but responses do not produce reinforcers.")
         ComponentToolTip.SetToolTip(rdoNAL1, "N/A: this input is not available during the component and does not run a response schedule.")
         ComponentToolTip.SetToolTip(rdoFRL1, "Fixed Ratio: each fixed number of responses produces a scheduled reinforcer.")
-        ComponentToolTip.SetToolTip(rdoVRL1, "Variable Ratio: the response requirement varies around the programmed value.")
+        ComponentToolTip.SetToolTip(rdoVRL1, "Variable Ratio: Fleshler-Hoffman series of positive integer response requirements; series mean equals the programmed value.")
         ComponentToolTip.SetToolTip(rdoFIL1, "Fixed Interval: whole seconds, without an added second. The first response after availability collects the reinforcer. Windows timer delivery is not hard real time.")
-        ComponentToolTip.SetToolTip(rdoVIL1, "Variable Interval: whole-second mean; 10 Fleshler-Hoffman intervals sampled without replacement. Fractional intervals are retained to milliseconds; the next response collects the reinforcer.")
+        ComponentToolTip.SetToolTip(rdoVIL1, "Variable Interval: whole-second mean; Configurable Fleshler-Hoffman intervals sampled without replacement. Fractional intervals are retained to milliseconds; the next response collects the reinforcer.")
         ComponentToolTip.SetToolTip(txbTD, "TD duration in seconds. Responses during TD use P TD to determine reinforcer delivery.")
         ComponentToolTip.SetToolTip(txbTDelta, "TΔ duration in seconds. Responses during TΔ use P TΔ to determine reinforcer delivery.")
         ComponentToolTip.SetToolTip(txbTPD, "Probability that each response during TD delivers a reinforcer.")
@@ -785,6 +848,7 @@ Public Class Component
 
     Private Sub TScheduleTextChanged(sender As Object, e As EventArgs) Handles txbTD.TextChanged, txbTDelta.TextChanged, txbTCycles.TextChanged, txbTInterPeriod.TextChanged
         UpdateTTotal()
+        UpdateVariableControls()
     End Sub
 
     ' Cancel: limpia slot y baja contador (evita componentes a medias)

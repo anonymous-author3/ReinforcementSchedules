@@ -35,6 +35,9 @@
         Dim InputName() As String
         Dim ScheduleType() As String
         Dim ScheduleValue() As Integer
+        <System.Runtime.Serialization.OptionalField> Public ClassicChains() As ClassicChainDefinition
+        <System.Runtime.Serialization.OptionalField> Public VariableValueCount() As Integer
+        <System.Runtime.Serialization.OptionalField> Public TimeVariableValueCount As Integer
         Dim Magnitude() As Integer
         Dim Reinforcer() As String
         Dim DeliveryP() As Integer

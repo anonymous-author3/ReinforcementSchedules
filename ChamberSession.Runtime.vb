@@ -22,6 +22,9 @@ Partial Public Class ChamberSession
         vCC = 1
         RandomCPres = configuration.RandomPresentation
         For i As Integer = 1 To MAXvCC
+            ClassicChainConfiguration.NormalizeLegacy(AC(i))
+            Dim chainError = ClassicChainConfiguration.ValidationError(AC(i))
+            If chainError <> "" Then Throw New ArgumentException("Component " & i & ": " & chainError)
             Dim intervalError As String = IntervalScheduleTiming.ValidationError(AC(i))
             If intervalError <> "" Then Throw New ArgumentException("Component " & i & ": " & intervalError)
             Dim referenceError As String = ReferenceConfiguration.ValidationError(AC(i))
@@ -255,6 +258,7 @@ Partial Public Class ChamberSession
         lagReportThread.Start()
     End Sub
     Private Sub StopRuntimeTimers()
+        StopClassicChains("SessionStop")
         StopLagActivity("SessionStop")
         acquisitionTimer.Stop()
         For Each timer As Timer In New Timer() {tmrChrt, tmrStart, tmrPostSession, tmrComponentDuration, tmrComponentStim,
@@ -345,6 +349,7 @@ Partial Public Class ChamberSession
         tmrComponentLightStim.Dispose()
         tmrTimeSchedule.Dispose()
         If lagTimeoutTimer IsNot Nothing Then lagTimeoutTimer.Dispose()
+        If chainStimulusTimer IsNot Nothing Then chainStimulusTimer.Dispose()
         For Each group As Timer() In New Timer()() {ScheduleTimers, DelayTimers, DelaySignalTimers,
             DelaySignalStartTimers, FeedbackTimers, TPeriodTimers, TInterPeriodTimers}
             For Each timer As Timer In group

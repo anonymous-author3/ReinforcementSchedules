@@ -1,4 +1,4 @@
-Imports System.IO
+﻿Imports System.IO
 Imports System.Reflection
 Imports System.Windows.Forms
 Imports ReinforcementSchedules
@@ -31,6 +31,7 @@ Module IntervalTests
             result.InputName(i) = "Input " & (i + 1)
             result.ScheduleType(i) = If(i < 2, If(lag, "Lag", "Fixed Ratio"), "N/A")
             result.ScheduleValue(i) = 2
+            result.VariableValueCount(i) = 10
             result.Magnitude(i) = If(i < 2, 1, 0)
             result.Reinforcer(i) = If(i < 2, "Pellet", "N/A")
             result.DeliveryP(i) = 100

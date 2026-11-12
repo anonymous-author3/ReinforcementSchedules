@@ -1,4 +1,4 @@
-Partial Public Class ChamberSession
+﻿Partial Public Class ChamberSession
     Private CODL As Integer
     Private CompIndex As Byte = 10
     Private chartFlag(1) As Boolean
@@ -14,6 +14,7 @@ Partial Public Class ChamberSession
     Private TimeRefCount_i As Integer
     Private refRdy(MAX_INPUTS - 1) As Boolean
     Private VIList(MAX_INPUTS - 1) As List(Of Double)
+    Private VRList(MAX_INPUTS - 1) As List(Of Integer)
     Private ObtainedDelays(MAX_INPUTS - 1) As List(Of Integer)
     Private RatioCount(MAX_INPUTS - 1) As Integer
     Private RatioGoal(MAX_INPUTS - 1) As Integer

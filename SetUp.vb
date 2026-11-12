@@ -83,6 +83,22 @@
                 If AC(i).LagHistoryReference IsNot Nothing Then AppendConfigLine(lines, "Component " & i & " Prior Lag Session", AC(i).LagHistoryReference.SourceDescription & "; UID=" & AC(i).LagHistoryReference.SessionUid & "; component=" & AC(i).LagHistoryReference.SelectedComponent)
             End If
         Next
+        For i As Integer = 1 To vCC
+            AppendConfigLine(lines, "Component " & i & " Time Variable Series Count", IntervalScheduleTiming.TimeCount(AC(i)))
+            For inputIndex As Integer = 0 To AC(i).InputCount - 1
+                AppendConfigLine(lines, "Component " & i & " Input " & (inputIndex + 1) & " Variable Series Count", IntervalScheduleTiming.InputCount(AC(i), inputIndex))
+            Next
+        Next
+        For i As Integer = 1 To vCC
+            For inputIndex As Integer = 0 To AC(i).InputCount - 1
+                Dim chain = ClassicChainConfiguration.GetChain(AC(i), inputIndex)
+                If chain Is Nothing Then Continue For
+                For linkIndex As Integer = 0 To chain.Links.Count - 1
+                    Dim link = chain.Links(linkIndex)
+                    AppendConfigLine(lines, "Component " & i & " Input " & (inputIndex + 1) & " Chain Link " & (linkIndex + 1), link.ScheduleType & " " & link.Value & "; series=" & link.VariableValueCount & "; stimulus=" & link.StimulusType & "; light interval=" & link.LightIntermittency & "; tone interval=" & link.ToneIntermittency & "; retract input=" & link.RetractInput)
+                Next
+            Next
+        Next
         Return lines.ToArray()
     End Function
 
@@ -260,6 +276,8 @@
     End Function
 
     Private Function ScheduleDisplay(componentIndex As Integer, inputIndex As Integer) As String
+        Dim chain = ClassicChainConfiguration.GetChain(AC(componentIndex), inputIndex)
+        If chain IsNot Nothing Then Return ClassicChainConfiguration.Summary(chain)
         If IsInputUnavailable(componentIndex, inputIndex) Then Return "N/A"
         If IsExtinction(componentIndex, inputIndex) Then Return "Extinction"
         If AC(componentIndex).LagEnabled Then Return "Lag " & AC(componentIndex).LagValue & " / " & AC(componentIndex).LagSequenceLength & " responses"
@@ -507,6 +525,8 @@
             For i = 1 To vCC
                 'A legacy load replaces, rather than inherits, any previous Lag settings.
                 AC(i) = New ComponentBlueprint
+                IntervalScheduleTiming.NormalizeLegacyCounts(AC(i))
+                ClassicChainConfiguration.NormalizeLegacy(AC(i))
                 ReDim AC(i).InputName(MAX_INPUTS - 1)
                 ReDim AC(i).ScheduleType(MAX_INPUTS - 1)
                 ReDim AC(i).ScheduleValue(MAX_INPUTS - 1)
@@ -614,7 +634,9 @@
                     Else
                         Dim scheduleKind As String = If(AC(i).ScheduleType(inputIndex), "").Trim().ToLowerInvariant()
                         If scheduleKind = "fixed interval" OrElse scheduleKind.Contains("variable interval") Then
-                            AC(i).ScheduleValue(inputIndex) = IntervalScheduleTiming.ParseWholeSeconds(AC(i).ScheduleType(inputIndex), scheduleValueText)
+                            Dim parsedValue As Integer
+                            If Not Integer.TryParse(scheduleValueText, parsedValue) Then Throw New System.IO.InvalidDataException("Enter whole-number interval seconds.")
+                            AC(i).ScheduleValue(inputIndex) = parsedValue
                         Else
                             AC(i).ScheduleValue(inputIndex) = scheduleValueText
                         End If
@@ -680,10 +702,28 @@
                     AC(i).DelaySignalDuration(inputIndex) = 0
                 Next
 
-                Dim intervalError As String = IntervalScheduleTiming.ValidationError(AC(i))
-                If intervalError <> "" Then Throw New System.IO.InvalidDataException("Component " & i & ": " & intervalError)
                 Dim lagError As String = LagConfiguration.ValidationError(AC(i))
                 If lagError <> "" Then Throw New System.IO.InvalidDataException("Component " & i & ": " & lagError)
+            Next
+            'Optional trailing series settings were added after the positional legacy layout.
+            While Not fileReader.EndOfStream
+                Dim line = fileReader.ReadLine()
+                For i As Integer = 1 To vCC
+                    If ConfigLineStartsWith(line, "Component " & i & " Time Variable Series Count:") Then
+                        AC(i).TimeVariableValueCount = Integer.Parse(ConfigValueFromLine(line))
+                        IntervalScheduleTiming.ValidateCount(AC(i).TimeVariableValueCount)
+                    End If
+                    For inputIndex As Integer = 0 To AC(i).InputCount - 1
+                        If ConfigLineStartsWith(line, "Component " & i & " Input " & (inputIndex + 1) & " Variable Series Count:") Then
+                            AC(i).VariableValueCount(inputIndex) = Integer.Parse(ConfigValueFromLine(line))
+                            IntervalScheduleTiming.ValidateCount(AC(i).VariableValueCount(inputIndex))
+                        End If
+                    Next
+                Next
+            End While
+            For i As Integer = 1 To vCC
+                Dim intervalError = IntervalScheduleTiming.ValidationError(AC(i))
+                If intervalError <> "" Then Throw New System.IO.InvalidDataException("Component " & i & ": " & intervalError)
             Next
             RefreshComponentSummaryTable()
 

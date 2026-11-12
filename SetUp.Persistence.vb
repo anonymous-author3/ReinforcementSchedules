@@ -1,4 +1,4 @@
-Imports System.IO
+﻿Imports System.IO
 
 Partial Public Class SetUp
     Private lastConfigurationPath As String = ""
@@ -34,6 +34,16 @@ Partial Public Class SetUp
         UpdateComponentOrderState()
         RefreshComponentSummaryTable()
     End Sub
+
+    Private Function LegacyDelayNotice() As String
+        For i As Integer = 1 To vCC
+            If AC(i).LagEnabled Then Continue For
+            If AC(i).DelayDuration IsNot Nothing AndAlso AC(i).DelayDuration.Any(Function(seconds) seconds > 0) Then
+                Return Environment.NewLine & Environment.NewLine & "This setup retains legacy reinforcement delays (including input retraction and cross-input blocking). New Classic schedules use time links instead; legacy delays have not been converted or removed."
+            End If
+        Next
+        Return ""
+    End Function
 
     Private Function ConfigurationDirectory() As String
         If lastConfigurationPath <> "" Then
@@ -106,7 +116,7 @@ Partial Public Class SetUp
             TestsPerformed = False
             lastConfigurationPath = Path.GetFullPath(filePath)
             MessageBox.Show(Me, "Setup loaded from:" & Environment.NewLine & lastConfigurationPath &
-                Environment.NewLine & Environment.NewLine & "Use Add box to add boxes with this configuration.",
+                Environment.NewLine & Environment.NewLine & "Use Add box to add boxes with this configuration." & LegacyDelayNotice(),
                 "Load setup", MessageBoxButtons.OK, MessageBoxIcon.Information)
         Catch ex As Exception
             ApplySetup(previous)
