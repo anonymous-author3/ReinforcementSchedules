@@ -15,6 +15,9 @@ Friend Class SetupSaveData
     Public Shared Function ReadJson(s As String) As SetupSaveData
         Return New SetupSaveData
     End Function
+    Public Function ToIndentedJson() As String
+        Return "{}"
+    End Function
     Public Function ToJson() As String
         Return "{}"
     End Function

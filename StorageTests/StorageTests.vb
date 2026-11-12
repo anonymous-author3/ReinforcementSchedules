@@ -99,7 +99,11 @@ Module StorageTests
             Next
             File.Delete(preferencePath)
             Dim setupPath = Path.Combine(root, "Schedule #1.json")
-            SampleSetup().Save(setupPath)
+            Dim readableSetup = SampleSetup()
+            readableSetup.BoxName = "Quotes ""and"" backslash \ and punctuation { [ , : } ] " & vbLf & "Accents: áé"
+            readableSetup.Save(setupPath)
+            Check(File.ReadAllLines(setupPath).Length > 10 AndAlso File.ReadAllText(setupPath).Contains("  ""BoxName"": "), "Saved JSON uses readable indentation")
+            Check(SetupSaveData.Read(setupPath).ToJson() = readableSetup.ToJson(), "Formatting preserves string escapes, dates and all values")
             Check(Not storage.IsConnected AndAlso storage.CaptureDestination() Is Nothing, "Starts local-only")
             Check(Not storage.QueueSetup(setupPath), "Local saves do not queue without a destination")
             Await storage.SynchronizeAsync()

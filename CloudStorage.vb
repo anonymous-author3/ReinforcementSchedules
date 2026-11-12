@@ -387,7 +387,7 @@ Partial Friend Class CloudStorage
             Dim setupObject = DirectCast(result("setup"), Dictionary(Of String, Object))
             If result.ContainsKey("arrayShapes") Then RestoreArrayShapes(setupObject, result("arrayShapes"))
             content = StorageJson.Encode(setupObject)
-            SetupSaveData.ReadJson(content)
+            content = SetupSaveData.ReadJson(content).ToIndentedJson()
         End If
         'Validate before replacing any cached file or changing the editor.
         If StorageJson.Hash(name.ToLowerInvariant()) <> info.Id Then Throw New InvalidDataException("RTDB configuration name does not match its ID.")

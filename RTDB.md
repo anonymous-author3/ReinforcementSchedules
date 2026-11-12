@@ -70,7 +70,7 @@ Las pruebas usan un transporte HTTP simulado y archivos temporales dentro de `ob
 
 ## Compatibilidad JSON
 
-Guardar siempre crea JSON. Cargar reconoce el contenido JSON o XML, independientemente de la extensión, y mantiene el importador TXT anterior. Cambiar solo la extensión de un TXT no lo convierte. Para convertir un archivo antiguo, abrirlo y guardarlo como `.json`; el original se conserva si se elige un archivo nuevo.
+Guardar siempre crea JSON legible con saltos de línea e indentación de dos espacios. Cargar reconoce el contenido JSON o XML, independientemente de la extensión, y mantiene el importador TXT anterior. Cambiar solo la extensión de un TXT no lo convierte. Para convertir un archivo antiguo, abrirlo y guardarlo como `.json`; el original se conserva si se elige un archivo nuevo.
 
 El nombre completo identifica cada configuración remota: `Setup.xml` y `Setup.json` son entradas distintas. La migración no borra ni reemplaza registros remotos anteriores. Las versiones antiguas de Soft Schedules no podrán cargar los JSON nuevos.
 

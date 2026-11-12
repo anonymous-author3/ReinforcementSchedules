@@ -89,9 +89,58 @@ Friend Class SetupSaveData
 
     Public Sub Save(filePath As String)
         Dim destination As String = Path.GetFullPath(filePath)
-        Dim json As String = ToJson()
-        StorageJson.WriteAtomically(destination, json)
+        StorageJson.WriteAtomically(destination, ToIndentedJson())
     End Sub
+
+    Public Function ToIndentedJson() As String
+        'Whitespace only: preserve number/date tokens and escapes exactly.
+        Dim compact As String = ToJson()
+        Dim result As New StringBuilder()
+        Dim depth As Integer = 0
+        Dim inString As Boolean = False
+        Dim escaped As Boolean = False
+        For index As Integer = 0 To compact.Length - 1
+            Dim character = compact(index)
+            If inString Then
+                result.Append(character)
+                If escaped Then
+                    escaped = False
+                ElseIf character = "\"c Then
+                    escaped = True
+                ElseIf character = """"c Then
+                    inString = False
+                End If
+                Continue For
+            End If
+            Select Case character
+                Case """"c
+                    inString = True
+                    result.Append(character)
+                Case "{"c, "["c
+                    result.Append(character)
+                    depth += 1
+                    If index + 1 < compact.Length AndAlso compact(index + 1) <> "}"c AndAlso compact(index + 1) <> "]"c Then
+                        result.AppendLine().Append(New String(" "c, depth * 2))
+                    End If
+                Case "}"c, "]"c
+                    depth -= 1
+                    If index > 0 AndAlso compact(index - 1) <> "{"c AndAlso compact(index - 1) <> "["c Then
+                        result.AppendLine().Append(New String(" "c, depth * 2))
+                    End If
+                    result.Append(character)
+                Case ","c
+                    result.Append(character).AppendLine().Append(New String(" "c, depth * 2))
+                Case ":"c
+                    result.Append(": ")
+                Case Else
+                    If Not Char.IsWhiteSpace(character) Then result.Append(character)
+            End Select
+        Next
+        result.AppendLine()
+        Dim json = result.ToString()
+        If Encoding.UTF8.GetByteCount(json) > MaximumBytes Then Throw New InvalidDataException("This formatted setup exceeds the 4 MB setup limit. Choose a smaller reference session.")
+        Return json
+    End Function
 
     Public Shared Function Read(filePath As String) As SetupSaveData
         If New FileInfo(filePath).Length > MaximumBytes Then Throw New InvalidDataException("Invalid setup size.")
