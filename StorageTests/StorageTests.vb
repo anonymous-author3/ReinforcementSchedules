@@ -62,6 +62,32 @@ Module StorageTests
             .CommandMap = New ArduinoCommandMap(), .ComponentCount = 1, .Components = components}
     End Function
 
+    Private Function SampleJson(filePath As String) As String
+        Return SetupSaveData.Read(filePath).ToJson()
+    End Function
+
+    Private Function FirebasePrune(value As Object) As Object
+        Dim fields = TryCast(value, Dictionary(Of String, Object))
+        If fields IsNot Nothing Then
+            Dim result As New Dictionary(Of String, Object)
+            For Each field In fields
+                Dim child = FirebasePrune(field.Value)
+                If child IsNot Nothing Then result(field.Key) = child
+            Next
+            Return If(result.Count = 0, Nothing, result)
+        End If
+        Dim array = TryCast(value, System.Collections.IList)
+        If array IsNot Nothing Then
+            Dim result As New Dictionary(Of String, Object)
+            For i As Integer = 0 To array.Count - 1
+                Dim child = FirebasePrune(array(i))
+                If child IsNot Nothing Then result(i.ToString()) = child
+            Next
+            Return If(result.Count = 0, Nothing, result)
+        End If
+        Return value
+    End Function
+
     Private Async Function RunStorageTests(root As String) As Task
         Dim server As New FakeFirebase()
         Using http As New HttpClient(server) With {.Timeout = TimeSpan.FromSeconds(2)}
@@ -72,13 +98,13 @@ Module StorageTests
                 Check(storage.SavedConnection().Count = 0, "Corrupt saved preferences fall back to empty fields")
             Next
             File.Delete(preferencePath)
-            Dim setupPath = Path.Combine(root, "Schedule #1.xml")
+            Dim setupPath = Path.Combine(root, "Schedule #1.json")
             SampleSetup().Save(setupPath)
             Check(Not storage.IsConnected AndAlso storage.CaptureDestination() Is Nothing, "Starts local-only")
             Check(Not storage.QueueSetup(setupPath), "Local saves do not queue without a destination")
             Await storage.SynchronizeAsync()
             Check(server.Requests.Count = 0, "Local-only mode sends no HTTP requests")
-            Check(SetupSaveData.Read(setupPath).Components(1).ScheduleValue(0) = 5, "Existing XML format still loads")
+            Check(SetupSaveData.Read(setupPath).Components(1).ScheduleValue(0) = 5, "New JSON format loads")
 
             For Each invalid In New String() {"http://test.firebaseio.com", database & "/configs", database & "/?auth=secret", "https://other.example", "https://a@b.firebaseio.com"}
                 Dim rejected As Boolean
@@ -122,20 +148,58 @@ Module StorageTests
             Check(File.ReadAllText(cached) = File.ReadAllText(setupPath), "RTDB configuration round-trips without losing fields")
             Check(SetupSaveData.Read(cached).Components(1).ScheduleValue(0) = 5, "Downloaded configuration uses existing validation")
 
+            Dim missingDuration = StorageJson.Decode(File.ReadAllText(setupPath))
+            Dim missingComponents = DirectCast(missingDuration("Components"), System.Collections.IList)
+            DirectCast(missingComponents(1), Dictionary(Of String, Object)).Remove("ComponentDuration")
+            Await Reject(Function()
+                             SetupSaveData.ReadJson(StorageJson.Encode(missingDuration))
+                             Return Task.CompletedTask
+                         End Function, "Missing JSON component duration cannot silently default to zero")
+
             Dim configKey = database & "/configs/" & entries(0).Id
             Dim remote = DirectCast(server.Values(configKey), Dictionary(Of String, Object))
-            Dim originalXml = CStr(remote("xml"))
-            remote("xml") = "<!DOCTYPE x [<!ENTITY a SYSTEM 'file:///secret'>]><x>&a;</x>"
+            Check(Convert.ToInt32(remote("schemaVersion")) = 2 AndAlso TypeOf remote("setup") Is Dictionary(Of String, Object), "RTDB stores a structured JSON setup")
+            Check(Not remote.ContainsKey("xml"), "New RTDB setup has no embedded XML string")
+            Dim originalSetup = remote("setup")
+            Dim originalCached = File.ReadAllText(cached)
+            remote("setup") = New Dictionary(Of String, Object) From {{"FormatVersion", 6}}
             Await Reject(Async Function()
                              Await restarted.DownloadSetupAsync(entries(0))
-                         End Function, "Invalid or unsafe remote XML is rejected")
-            Check(File.ReadAllText(cached) = originalXml, "Bad remote XML does not replace cached configuration")
-            remote("xml") = originalXml
-            remote("fileName") = "..\outside.xml"
+                         End Function, "Incomplete remote JSON is rejected")
+            Check(File.ReadAllText(cached) = originalCached, "Bad remote JSON does not replace cached configuration")
+            remote("setup") = originalSetup
+            remote("fileName") = "..\outside.json"
             Await Reject(Async Function()
                              Await restarted.DownloadSetupAsync(entries(0))
                          End Function, "Remote filenames cannot traverse local directories")
             remote("fileName") = entries(0).FileName
+
+            'Simulate RTDB pruning nulls / empty arrays and returning numeric-key objects.
+            remote("setup") = FirebasePrune(originalSetup)
+            Dim restoredPath = Await restarted.DownloadSetupAsync(entries(0))
+            Check(SetupSaveData.Read(restoredPath).ToJson() = SampleJson(setupPath), "RTDB null and empty-array pruning preserves all setup values")
+            remote("setup") = originalSetup
+
+            Dim legacyPath = Path.Combine(root, "Legacy.xml")
+            Using writer = System.Xml.XmlWriter.Create(legacyPath)
+                Dim serializer As New System.Runtime.Serialization.DataContractSerializer(GetType(SetupSaveData))
+                Dim legacySettings = SampleSetup()
+                legacySettings.FormatVersion = 5
+                serializer.WriteObject(writer, legacySettings)
+            End Using
+            Dim legacyXml = File.ReadAllText(legacyPath)
+            Check(SetupSaveData.ReadXml(legacyXml).Components(1).ScheduleValue(0) = 5, "Legacy XML still imports")
+            Dim legacyId = StorageJson.Hash("legacy.xml")
+            server.Values(database & "/configs/" & legacyId) = New Dictionary(Of String, Object) From {
+                {"fileName", "Legacy.xml"}, {"schemaVersion", 1}, {"xml", legacyXml}}
+            Dim legacyInfo As New CloudSetupInfo With {.Id = legacyId, .FileName = "Legacy.xml", .DestinationId = target.Id}
+            Dim legacyCache = Await restarted.DownloadSetupAsync(legacyInfo)
+            Check(File.ReadAllText(legacyCache) = legacyXml, "Old RTDB XML records remain readable without migration")
+            DirectCast(server.Values(database & "/configs/" & legacyId), Dictionary(Of String, Object))("xml") = "<!DOCTYPE x [<!ENTITY a SYSTEM 'file:///secret'>]><x>&a;</x>"
+            Await Reject(Async Function()
+                             Await restarted.DownloadSetupAsync(legacyInfo)
+                         End Function, "Unsafe legacy XML is rejected")
+            Check(File.ReadAllText(legacyCache) = legacyXml, "Unsafe XML cannot replace cached legacy file")
 
             Dim raw = Path.Combine(root, "raw.txt")
             Dim summary = Path.Combine(root, "summary.txt")
@@ -230,7 +294,7 @@ Module StorageTests
             Check(Await offline.RestoreSessionAsync() = SessionRestoreResult.RetryLater, "Offline startup does not require reconfiguration")
             Check(offline.CaptureDestination().Id = target.Id, "Offline startup retains the destination for new session files")
             Check(File.ReadAllText(profileFile) = validProfile, "A network failure does not erase saved credentials")
-            Dim setupFile = Path.Combine(root, "offline.xml")
+            Dim setupFile = Path.Combine(root, "offline.json")
             SampleSetup().Save(setupFile)
             Check(offline.QueueSetup(setupFile), "Files saved while reconnecting are queued for the remembered database")
             server.Offline = False

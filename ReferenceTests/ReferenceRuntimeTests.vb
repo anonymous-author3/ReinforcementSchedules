@@ -250,11 +250,11 @@ Module ReferenceRuntimeTests
             Check(yoked.YokedReference.Sequences(0).Value = "11", "reference snapshots deep cloned per chamber")
             Dim settings As New SetupSaveData With {.SavedAtUtc = Date.UtcNow, .BoxName = "Test", .StartDelay = "0", .PostSession = "0", .ICIDuration = "0", .ICIStimulus = "None", .ComponentOrder = "", .CommandMap = New ArduinoCommandMap(), .ComponentCount = 1}
             Dim comps(MAX_COMPONENTS) As ComponentBlueprint : comps(1) = yoked : settings.Components = comps
-            Dim file = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") & ".xml")
+            Dim file = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") & ".json")
             Try
                 settings.Save(file)
                 Dim loaded = SetupSaveData.Read(file)
-                Check(loaded.FormatVersion = 5 AndAlso loaded.Components(1).YokedEnabled AndAlso loaded.Components(1).YokedReference.Deliveries.Count = 3, "v5 exact references round-trip XML")
+                Check(loaded.FormatVersion = 6 AndAlso loaded.Components(1).YokedEnabled AndAlso loaded.Components(1).YokedReference.Deliveries.Count = 3, "v6 exact references round-trip JSON")
             Finally
                 If IO.File.Exists(file) Then IO.File.Delete(file)
             End Try

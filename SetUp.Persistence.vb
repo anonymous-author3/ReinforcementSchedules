@@ -47,10 +47,10 @@ Partial Public Class SetUp
     Private Async Sub btnSave_Click(sender As Object, e As EventArgs) Handles btnSave.Click
         Using dialog As New SaveFileDialog With {
             .Title = "Save program setup — choose a name and folder",
-            .Filter = "Setup files (*.xml)|*.xml", .DefaultExt = "xml", .AddExtension = True,
+            .Filter = "Setup files (*.json)|*.json", .DefaultExt = "json", .AddExtension = True,
             .OverwritePrompt = True, .CheckPathExists = True, .RestoreDirectory = True,
             .InitialDirectory = ConfigurationDirectory(),
-            .FileName = If(lastConfigurationPath = "", "Setup.xml", Path.GetFileNameWithoutExtension(lastConfigurationPath) & ".xml")
+            .FileName = If(lastConfigurationPath = "", "Setup.json", Path.GetFileNameWithoutExtension(lastConfigurationPath) & ".json")
         }
             If dialog.ShowDialog(Me) <> DialogResult.OK Then Return
             Try
@@ -77,7 +77,7 @@ Partial Public Class SetUp
 
     Private Sub btnLoad_Click(sender As Object, e As EventArgs) Handles btnLoad.Click
         Using dialog As New OpenFileDialog With {
-            .Title = "Load setup", .Filter = "Saved setups (*.xml;*.txt)|*.xml;*.txt|All files (*.*)|*.*",
+            .Title = "Load setup", .Filter = "Saved setups (*.json;*.xml;*.txt)|*.json;*.xml;*.txt|All files (*.*)|*.*",
             .InitialDirectory = ConfigurationDirectory(), .CheckFileExists = True,
             .Multiselect = False, .RestoreDirectory = True
         }
@@ -90,14 +90,14 @@ Partial Public Class SetUp
         Dim previous As SetupSaveData = CaptureSetup()
         Dim previousTestsPerformed As Boolean = TestsPerformed
         Try
-            Dim isXml As Boolean
+            Dim isStructured As Boolean
             Using reader As New StreamReader(filePath)
                 While reader.Peek() >= 0 AndAlso Char.IsWhiteSpace(ChrW(reader.Peek()))
                     reader.Read()
                 End While
-                isXml = reader.Peek() = AscW("<"c)
+                isStructured = reader.Peek() = AscW("<"c) OrElse reader.Peek() = AscW("{"c)
             End Using
-            If isXml Then
+            If isStructured Then
                 'Read and validate the complete file before updating any controls.
                 ApplySetup(SetupSaveData.Read(filePath))
             Else

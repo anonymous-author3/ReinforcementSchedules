@@ -8,10 +8,10 @@ Si se abre sin internet, se conserva la sesión guardada y se reintenta automát
 
 ## Configuraciones
 
-- **Load** conserva el selector local y los formatos XML y TXT existentes.
-- **Save** guarda primero el XML en la carpeta elegida. Si hay una RTDB conectada, también encola una copia para esa base.
-- **Load from RTDB…** muestra las configuraciones guardadas desde esta aplicación. Descarga y valida el XML completo antes de aplicarlo. Conserva una copia local en `%LOCALAPPDATA%\ReinforcementSchedules\firebase\<destino>\configs` que también se puede abrir con **Load**.
-- El nombre del archivo identifica la configuración en la base, sin distinguir mayúsculas. Guardar de nuevo `Setup.xml` actualiza esa configuración; usar otro nombre crea otra entrada. Conviene usar nombres distintos para programas distintos, aunque estén en carpetas locales diferentes.
+- **Load** conserva el selector local, admite JSON y mantiene la importación de XML y TXT anteriores.
+- **Save** guarda primero el JSON en la carpeta elegida. Si hay una RTDB conectada, también encola una copia para esa base.
+- **Load from RTDB…** muestra las configuraciones guardadas desde esta aplicación. Descarga y valida la configuración completa (JSON estructurado nuevo o XML antiguo) antes de aplicarlo. Conserva una copia local en `%LOCALAPPDATA%\ReinforcementSchedules\firebase\<destino>\configs` que también se puede abrir con **Load**.
+- El nombre del archivo identifica la configuración en la base, sin distinguir mayúsculas. Guardar de nuevo `Setup.json` actualiza esa configuración; usar otro nombre crea otra entrada. Conviene usar nombres distintos para programas distintos, aunque estén en carpetas locales diferentes.
 
 ## Datos de sesión
 
@@ -47,12 +47,12 @@ Estructura remota:
 ```text
 reinforcementSchedules/
   configIndex/<hash del nombre>/     fileName, savedAtUtc, schemaVersion
-  configs/<hash del nombre>/         metadatos y xml
+  configs/<hash del nombre>/         metadatos, setup (objeto JSON) y arrayShapes
   sessions/<UID>/                    metadatos y files/{raw,summary,chart}
   connectionChecks/<UID temporal>/   prueba de acceso, eliminada al conectar
 ```
 
-La configuración y su índice se actualizan juntos mediante una escritura atómica. Los XML propios de este programa conservan su formato; las configuraciones de Unity tienen un esquema diferente y no se importan como programas de cajas.
+La configuración y su índice se actualizan juntos mediante una escritura atómica. Los archivos nuevos usan JSON con `FormatVersion: 6`. La RTDB usa `schemaVersion: 2`, con el objeto de configuración en `setup`, no XML como texto. `arrayShapes` conserva posiciones nulas y arreglos vacíos que RTDB omite. Los registros antiguos con `schemaVersion: 1` y `xml` siguen siendo legibles y no se reescriben automáticamente; las configuraciones de Unity tienen un esquema diferente y no se importan como programas de cajas.
 
 Referencias: [Firebase Authentication REST](https://firebase.google.com/docs/reference/rest/auth), [sesiones de Firebase](https://firebase.google.com/docs/auth/admin/manage-sessions), [protección para el usuario de Windows](https://learn.microsoft.com/en-us/dotnet/api/system.security.cryptography.dataprotectionscope), [escrituras RTDB](https://firebase.google.com/docs/database/rest/save-data), [lecturas RTDB](https://firebase.google.com/docs/database/rest/retrieve-data).
 
@@ -66,4 +66,12 @@ msbuild StorageTests\StorageTests.vbproj /t:Build /p:Configuration=Debug
 .\StorageTests\bin\Debug\ReinforcementSchedules.StorageTests.exe
 ```
 
-Las pruebas usan un transporte HTTP simulado y archivos temporales dentro de `obj\st`, sin acceder a Firebase ni al Arduino. Comprueban modo local, autenticación, permisos, renovación de tokens, recuperación de pendientes, reintentos idempotentes, aislamiento de destinos, XML inválido y el diálogo de inicio. Se requiere una comprobación adicional con la cuenta y reglas reales de la RTDB que se vaya a utilizar.
+Las pruebas usan un transporte HTTP simulado y archivos temporales dentro de `obj\st`, sin acceder a Firebase ni al Arduino. Comprueban modo local, autenticación, permisos, renovación de tokens, recuperación de pendientes, reintentos idempotentes, aislamiento de destinos, JSON y XML inválidos y el diálogo de inicio. Se requiere una comprobación adicional con la cuenta y reglas reales de la RTDB que se vaya a utilizar.
+
+## Compatibilidad JSON
+
+Guardar siempre crea JSON. Cargar reconoce el contenido JSON o XML, independientemente de la extensión, y mantiene el importador TXT anterior. Cambiar solo la extensión de un TXT no lo convierte. Para convertir un archivo antiguo, abrirlo y guardarlo como `.json`; el original se conserva si se elige un archivo nuevo.
+
+El nombre completo identifica cada configuración remota: `Setup.xml` y `Setup.json` son entradas distintas. La migración no borra ni reemplaza registros remotos anteriores. Las versiones antiguas de Soft Schedules no podrán cargar los JSON nuevos.
+
+Se conservan las unidades y los índices del modelo: `Components` usa índice 1 para el primer componente; los arreglos de entradas usan índice 0 para la entrada 1. Los tiempos y valores de programas no cambian al convertir. `SavedAtUtc` es metadato de guardado, serializado como fecha JSON de .NET (`/Date(...)/`). No es un tiempo experimental.

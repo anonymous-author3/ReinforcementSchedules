@@ -232,13 +232,15 @@ Partial Friend Class CloudStorage
     Public Function QueueSetup(filePath As String) As Boolean
         Dim destination = CaptureDestination()
         If destination Is Nothing Then Return False
-        Dim xml = File.ReadAllText(filePath)
-        Dim settings = SetupSaveData.ReadXml(xml)
-        Dim name = Path.GetFileName(filePath)
+        Dim settings = SetupSaveData.Read(filePath)
+        Dim name = Path.ChangeExtension(Path.GetFileName(filePath), ".json")
         Dim id = StorageJson.Hash(name.ToLowerInvariant())
         Dim metadata As New Dictionary(Of String, Object) From {
-            {"fileName", name}, {"savedAtUtc", settings.SavedAtUtc.ToUniversalTime().ToString("o")}, {"schemaVersion", 1}}
-        Dim config As New Dictionary(Of String, Object)(metadata) From {{"xml", xml}}
+            {"fileName", name}, {"savedAtUtc", settings.SavedAtUtc.ToUniversalTime().ToString("o")}, {"schemaVersion", 2}}
+        Dim setupObject = StorageJson.Decode(settings.ToJson())
+        Dim arrayShapes As New List(Of Object)()
+        CaptureArrayShapes(setupObject, "", arrayShapes)
+        Dim config As New Dictionary(Of String, Object)(metadata) From {{"setup", setupObject}, {"arrayShapes", arrayShapes}}
         Enqueue(destination, New Dictionary(Of String, Object) From {
             {"updates", New Dictionary(Of String, Object) From {{"configs/" & id, config}, {"configIndex/" & id, metadata}}}})
         Return True
@@ -372,16 +374,101 @@ Partial Friend Class CloudStorage
         Dim result = Await client.ReadAsync("configs/" & info.Id, CancellationToken.None)
         EnsureCurrentClient(client)
         If result Is Nothing Then Throw New IOException("This configuration is no longer in RTDB.")
-        If Convert.ToInt32(result("schemaVersion")) <> 1 Then Throw New InvalidDataException("Unsupported RTDB configuration format.")
+        Dim schemaVersion = Convert.ToInt32(result("schemaVersion"))
+        If schemaVersion <> 1 AndAlso schemaVersion <> 2 Then Throw New InvalidDataException("Unsupported RTDB configuration format.")
         Dim name = CStr(result("fileName"))
         ValidateFileName(name)
-        Dim xml = CStr(result("xml"))
-        SetupSaveData.ReadXml(xml) 'Validate before replacing any cached file or changing the editor.
+        Dim content As String
+        If schemaVersion = 1 Then
+            content = CStr(result("xml"))
+            SetupSaveData.ReadXml(content)
+        Else
+            If Not TypeOf result("setup") Is Dictionary(Of String, Object) Then Throw New InvalidDataException("Invalid RTDB setup object.")
+            Dim setupObject = DirectCast(result("setup"), Dictionary(Of String, Object))
+            If result.ContainsKey("arrayShapes") Then RestoreArrayShapes(setupObject, result("arrayShapes"))
+            content = StorageJson.Encode(setupObject)
+            SetupSaveData.ReadJson(content)
+        End If
+        'Validate before replacing any cached file or changing the editor.
         If StorageJson.Hash(name.ToLowerInvariant()) <> info.Id Then Throw New InvalidDataException("RTDB configuration name does not match its ID.")
         Dim cache = Path.Combine(storageRoot, "firebase", client.Destination.Id, "configs", name)
-        StorageJson.WriteAtomically(cache, xml)
+        StorageJson.WriteAtomically(cache, content)
         Return cache
     End Function
+
+    'RTDB removes null children and empty arrays and may return sparse arrays as
+    'numeric-keyed objects. Keep only array dimensions alongside the readable
+    'setup object so downloaded configurations preserve all positions exactly.
+    Private Shared Sub CaptureArrayShapes(value As Object, path As String, shapes As List(Of Object))
+        Dim fields = TryCast(value, Dictionary(Of String, Object))
+        If fields IsNot Nothing Then
+            For Each field In fields
+                CaptureArrayShapes(field.Value, path & "/" & field.Key, shapes)
+            Next
+            Return
+        End If
+        Dim items = TryCast(value, System.Collections.IList)
+        If items Is Nothing Then Return
+        shapes.Add(New With {.path = path, .length = items.Count})
+        For index As Integer = 0 To items.Count - 1
+            CaptureArrayShapes(items(index), path & "/" & index.ToString(Globalization.CultureInfo.InvariantCulture), shapes)
+        Next
+    End Sub
+
+    Private Shared Sub RestoreArrayShapes(root As Dictionary(Of String, Object), metadata As Object)
+        Dim shapes = TryCast(metadata, System.Collections.IList)
+        If shapes Is Nothing OrElse shapes.Count > 100000 Then Throw New InvalidDataException("Invalid RTDB array metadata.")
+        Dim totalLength As Long = 0
+        For Each entry In shapes
+            Dim shape = TryCast(entry, Dictionary(Of String, Object))
+            If shape Is Nothing Then Throw New InvalidDataException("Invalid RTDB array metadata.")
+            Dim path = CStr(shape("path"))
+            Dim length = Convert.ToInt32(shape("length"))
+            totalLength += length
+            If length < 0 OrElse totalLength > 1000000 OrElse path Is Nothing OrElse Not path.StartsWith("/", StringComparison.Ordinal) Then Throw New InvalidDataException("Invalid RTDB array dimensions.")
+            Dim parts = path.Substring(1).Split("/"c)
+            If parts.Length > 64 Then Throw New InvalidDataException("Invalid RTDB array path.")
+            Dim parent As Object = root
+            For i As Integer = 0 To parts.Length - 2
+                Dim fields = TryCast(parent, Dictionary(Of String, Object))
+                If fields IsNot Nothing Then
+                    parent = fields(parts(i))
+                Else
+                    parent = DirectCast(parent, Object())(Integer.Parse(parts(i), Globalization.CultureInfo.InvariantCulture))
+                End If
+            Next
+            Dim key = parts(parts.Length - 1)
+            Dim oldValue As Object = Nothing
+            Dim dictionary = TryCast(parent, Dictionary(Of String, Object))
+            If dictionary IsNot Nothing Then
+                dictionary.TryGetValue(key, oldValue)
+            Else
+                oldValue = DirectCast(parent, Object())(Integer.Parse(key, Globalization.CultureInfo.InvariantCulture))
+            End If
+            Dim restored(length - 1) As Object
+            Dim oldArray = TryCast(oldValue, System.Collections.IList)
+            Dim oldFields = TryCast(oldValue, Dictionary(Of String, Object))
+            If oldArray IsNot Nothing Then
+                If oldArray.Count > length Then Throw New InvalidDataException("RTDB array is longer than declared.")
+                For i As Integer = 0 To oldArray.Count - 1
+                    restored(i) = oldArray(i)
+                Next
+            ElseIf oldFields IsNot Nothing Then
+                For Each item In oldFields
+                    Dim index As Integer
+                    If Not Integer.TryParse(item.Key, index) OrElse index < 0 OrElse index >= length Then Throw New InvalidDataException("Invalid RTDB array index.")
+                    restored(index) = item.Value
+                Next
+            ElseIf oldValue IsNot Nothing Then
+                Throw New InvalidDataException("Invalid RTDB array value.")
+            End If
+            If dictionary IsNot Nothing Then
+                dictionary(key) = restored
+            Else
+                DirectCast(parent, Object())(Integer.Parse(key, Globalization.CultureInfo.InvariantCulture)) = restored
+            End If
+        Next
+    End Sub
 
     Private Sub EnsureCurrentClient(client As FirebaseClient)
         SyncLock gate
@@ -397,7 +484,7 @@ Partial Friend Class CloudStorage
 
     Private Shared Sub ValidateFileName(name As String)
         If String.IsNullOrWhiteSpace(name) OrElse name <> Path.GetFileName(name) OrElse
-            name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 OrElse Not name.EndsWith(".xml", StringComparison.OrdinalIgnoreCase) Then
+            name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 OrElse Not (name.EndsWith(".xml", StringComparison.OrdinalIgnoreCase) OrElse name.EndsWith(".json", StringComparison.OrdinalIgnoreCase)) Then
             Throw New InvalidDataException("Invalid RTDB configuration filename.")
         End If
     End Sub

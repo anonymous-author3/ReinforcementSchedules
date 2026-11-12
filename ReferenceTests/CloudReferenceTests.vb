@@ -9,6 +9,15 @@ Imports System.Threading.Tasks
 Imports System.Collections.Generic
 Friend Class SetupSaveData
     Public Property SavedAtUtc As DateTime
+    Public Shared Function Read(s As String) As SetupSaveData
+        Return New SetupSaveData
+    End Function
+    Public Shared Function ReadJson(s As String) As SetupSaveData
+        Return New SetupSaveData
+    End Function
+    Public Function ToJson() As String
+        Return "{}"
+    End Function
     Public Shared Function ReadXml(s As String) As SetupSaveData
         Return New SetupSaveData
     End Function

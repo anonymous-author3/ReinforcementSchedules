@@ -49,12 +49,16 @@ $f.Dispose()
 $setup=[Activator]::CreateInstance($a.GetType('ReinforcementSchedules.SetUp'))
 $null=$setup.Handle
 $settings=Invoke $setup CaptureSetup
-$path=Join-Path $root 'with-tone.xml'
+$path=Join-Path $root 'with-tone.json'
 $null=Invoke $settings Save @($path)
 $st=$a.GetType('ReinforcementSchedules.SetupSaveData')
 $loaded=$st.GetMethod('Read',$flags).Invoke($null,@([string]$path))
-Check ($loaded.Components[1].LagTimeoutTone) 'XML save/load preserves Tono'
-$xml=[IO.File]::ReadAllText($path)
+Check ($loaded.Components[1].LagTimeoutTone) 'JSON save/load preserves Tono'
+$legacyPath=Join-Path $root 'legacy-tone.xml'
+$settings.FormatVersion=5
+$writer=[Xml.XmlWriter]::Create($legacyPath)
+try { ([Runtime.Serialization.DataContractSerializer]::new($st)).WriteObject($writer,$settings) } finally { $writer.Dispose() }
+$xml=[IO.File]::ReadAllText($legacyPath)
 [xml]$legacyXml=$xml; foreach($node in @($legacyXml.SelectNodes("//*[local-name()='LagTimeoutTone']"))){$null=$node.ParentNode.RemoveChild($node)}; $oldXml=$legacyXml.OuterXml
 foreach($version in @(4,5)) {
  $vxml=$oldXml.Replace('<FormatVersion>5</FormatVersion>',"<FormatVersion>$version</FormatVersion>")

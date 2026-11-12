@@ -3,12 +3,13 @@ Imports System.Reflection
 Imports System.Runtime.Serialization
 Imports System.Text
 Imports System.Xml
+Imports System.Web.Script.Serialization
 
 'A saved editor configuration is separate from a running chamber's state.
 <DataContract(Name:="ReinforcementSchedulesSetup", [Namespace]:="urn:reinforcement-schedules:setup")>
 Friend Class SetupSaveData
     <DataMember(IsRequired:=True)>
-    Public Property FormatVersion As Integer = 5
+    Public Property FormatVersion As Integer = 6
     <DataMember(IsRequired:=True)>
     Public Property SavedAtUtc As DateTime
     <DataMember(IsRequired:=True)>
@@ -40,7 +41,7 @@ Friend Class SetupSaveData
 
     Public Sub Validate()
         'Version 1 files may contain per-box details; those members are ignored on load.
-        If FormatVersion < 1 OrElse FormatVersion > 5 Then Throw New InvalidDataException("This setup file uses an unsupported version.")
+        If FormatVersion < 1 OrElse FormatVersion > 6 Then Throw New InvalidDataException("This setup file uses an unsupported version.")
         For Each field As PropertyInfo In GetType(SetupSaveData).GetProperties()
             If field.Name = NameOf(LegacyLeverLetters) Then Continue For
             If field.PropertyType Is GetType(String) AndAlso field.GetValue(Me) Is Nothing Then
@@ -76,58 +77,77 @@ Friend Class SetupSaveData
         Next
     End Sub
 
-    Public Sub Save(filePath As String)
+    Private Const MaximumBytes As Integer = 4 * 1024 * 1024
+
+    'JSON is the canonical format for new saves. XML remains an import format.
+    Public Function ToJson() As String
         Validate()
+        Dim json As String = New JavaScriptSerializer With {.MaxJsonLength = MaximumBytes}.Serialize(Me)
+        If Encoding.UTF8.GetByteCount(json) > MaximumBytes Then Throw New InvalidDataException("This setup and its reference snapshots exceed the 4 MB setup limit.")
+        Return json
+    End Function
+
+    Public Sub Save(filePath As String)
         Dim destination As String = Path.GetFullPath(filePath)
-        Dim temporaryFile As String = destination & "." & Guid.NewGuid().ToString("N") & ".tmp"
-        Try
-            Dim settings As New XmlWriterSettings With {.Indent = True, .Encoding = New UTF8Encoding(False)}
-            Using stream As New FileStream(temporaryFile, FileMode.CreateNew, FileAccess.Write, FileShare.None)
-                Using writer As XmlWriter = XmlWriter.Create(stream, settings)
-                    Dim serializer As New DataContractSerializer(GetType(SetupSaveData))
-                    serializer.WriteObject(writer, Me)
-                End Using
-                stream.Flush(True)
-                If stream.Length > 4 * 1024 * 1024 Then Throw New InvalidDataException("This setup and its reference snapshots exceed the 4 MB setup limit. Choose a smaller reference session.")
-            End Using
-            'Replace only after the complete new file has been written successfully.
-            If File.Exists(destination) Then
-                File.Replace(temporaryFile, destination, Nothing)
-            Else
-                File.Move(temporaryFile, destination)
-            End If
-        Finally
-            Try
-                If File.Exists(temporaryFile) Then File.Delete(temporaryFile)
-            Catch ex As IOException
-            Catch ex As UnauthorizedAccessException
-            End Try
-        End Try
+        Dim json As String = ToJson()
+        StorageJson.WriteAtomically(destination, json)
     End Sub
 
     Public Shared Function Read(filePath As String) As SetupSaveData
-        Using stream As New FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read)
-            Return ReadStream(stream)
-        End Using
+        If New FileInfo(filePath).Length > MaximumBytes Then Throw New InvalidDataException("Invalid setup size.")
+        Return ReadText(File.ReadAllText(filePath, Encoding.UTF8))
+    End Function
+
+    Public Shared Function ReadText(content As String) As SetupSaveData
+        If content Is Nothing OrElse Encoding.UTF8.GetByteCount(content) > MaximumBytes Then Throw New InvalidDataException("Invalid setup size.")
+        Dim trimmed As String = content.TrimStart(ChrW(&HFEFF), " "c, ChrW(9), ChrW(10), ChrW(13))
+        If trimmed.StartsWith("{", StringComparison.Ordinal) Then Return ReadJson(trimmed)
+        Return ReadXml(trimmed)
+    End Function
+
+    Public Shared Function ReadJson(json As String) As SetupSaveData
+        If json Is Nothing OrElse Encoding.UTF8.GetByteCount(json) > MaximumBytes Then Throw New InvalidDataException("Invalid setup size.")
+        Dim serializer As New JavaScriptSerializer With {.MaxJsonLength = MaximumBytes}
+        Dim fields = serializer.Deserialize(Of Dictionary(Of String, Object))(json)
+        If fields Is Nothing Then Throw New InvalidDataException("Empty setup file.")
+        'Do not silently replace a missing required setting with a default value.
+        For Each prop In GetType(SetupSaveData).GetProperties()
+            Dim member = DirectCast(Attribute.GetCustomAttribute(prop, GetType(DataMemberAttribute)), DataMemberAttribute)
+            If member IsNot Nothing AndAlso member.IsRequired AndAlso Not fields.ContainsKey(prop.Name) Then
+                Throw New InvalidDataException("Missing setup value: " & prop.Name & ".")
+            End If
+        Next
+        Dim rawComponents = TryCast(fields("Components"), System.Collections.IList)
+        Dim count As Integer = Convert.ToInt32(fields("ComponentCount"))
+        If rawComponents Is Nothing OrElse rawComponents.Count <> MAX_COMPONENTS + 1 OrElse count < 0 OrElse count > MAX_COMPONENTS Then Throw New InvalidDataException("Unsupported component count.")
+        For index As Integer = 1 To count
+            Dim componentFields = TryCast(rawComponents(index), Dictionary(Of String, Object))
+            If componentFields Is Nothing Then Throw New InvalidDataException("Missing component " & index & ".")
+            For Each field In GetType(ComponentBlueprint).GetFields(BindingFlags.Instance Or BindingFlags.Public)
+                If field.FieldType.IsValueType AndAlso Not Attribute.IsDefined(field, GetType(OptionalFieldAttribute)) AndAlso
+                    (Not componentFields.ContainsKey(field.Name) OrElse componentFields(field.Name) Is Nothing) Then
+                    Throw New InvalidDataException("Missing component " & index & " value: " & field.Name & ".")
+                End If
+            Next
+        Next
+        Dim result = serializer.Deserialize(Of SetupSaveData)(json)
+        result.Validate()
+        Return result
     End Function
 
     Public Shared Function ReadXml(xml As String) As SetupSaveData
-        If xml Is Nothing OrElse xml.Length > 4 * 1024 * 1024 Then Throw New InvalidDataException("Invalid setup size.")
+        If xml Is Nothing OrElse Encoding.UTF8.GetByteCount(xml) > MaximumBytes Then Throw New InvalidDataException("Invalid setup size.")
         Using stream As New MemoryStream(Encoding.UTF8.GetBytes(xml))
-            Return ReadStream(stream)
-        End Using
-    End Function
-
-    Private Shared Function ReadStream(stream As Stream) As SetupSaveData
-        Dim settings As New XmlReaderSettings With {
-            .DtdProcessing = DtdProcessing.Prohibit, .XmlResolver = Nothing,
-            .MaxCharactersInDocument = 4 * 1024 * 1024
-        }
-        Using reader As XmlReader = XmlReader.Create(stream, settings)
-            Dim result As SetupSaveData = DirectCast(New DataContractSerializer(GetType(SetupSaveData)).ReadObject(reader), SetupSaveData)
-            If result Is Nothing Then Throw New InvalidDataException("Empty setup file.")
-            result.Validate()
-            Return result
+            Dim settings As New XmlReaderSettings With {
+                .DtdProcessing = DtdProcessing.Prohibit, .XmlResolver = Nothing,
+                .MaxCharactersInDocument = MaximumBytes
+            }
+            Using reader As XmlReader = XmlReader.Create(stream, settings)
+                Dim result = DirectCast(New DataContractSerializer(GetType(SetupSaveData)).ReadObject(reader), SetupSaveData)
+                If result Is Nothing Then Throw New InvalidDataException("Empty setup file.")
+                result.Validate()
+                Return result
+            End Using
         End Using
     End Function
 End Class

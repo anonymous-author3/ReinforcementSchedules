@@ -212,7 +212,11 @@ Module IntervalTests
         components(1).ScheduleType(1) = "Variable Interval" : components(1).ScheduleValue(1) = 60
         Dim setup As New SetupSaveData With {.BoxName = "Interval test", .SavedAtUtc = DateTime.UtcNow, .StartDelay = "0", .PostSession = "0", .ICIDuration = "0", .ICIStimulus = "None", .ComponentOrder = "1", .CommandMap = New ArduinoCommandMap(), .ComponentCount = 1, .Components = components, .LegacyLeverLetters = "A,B"}
         Dim path = IO.Path.Combine(root, "interval-v4.xml")
-        setup.Save(path)
+        setup.FormatVersion = 4
+        Using stream = File.Create(path)
+            Dim serializer As New System.Runtime.Serialization.DataContractSerializer(GetType(SetupSaveData))
+            serializer.WriteObject(stream, setup)
+        End Using
         Dim xml = File.ReadAllText(path)
         For version As Integer = 3 To 4
             Dim loaded = SetupSaveData.ReadXml(xml.Replace("<FormatVersion>4</FormatVersion>", "<FormatVersion>" & version & "</FormatVersion>"))
