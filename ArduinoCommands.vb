@@ -5,13 +5,16 @@ Imports System.Text
 Public Class ArduinoCommandMap
     'Order: six insert/retract pairs, four lights, house light, tone, pump,
     'then feeder pulse, pump pulse, tone pulse and all-off. Matches the bundled sketch.
-    Public Const DefaultCodes As String = "LlMmCcDdNnOoAaBbEeFfHhTtPpRWZX"
+    Public Const LegacyCodes As String = "LlMmCcDdNnOoAaBbEeFfHhTtPpRWZX"
+    Public Const DefaultCodes As String = LegacyCodes & "UV"
 
     <DataMember(IsRequired:=True)>
     Public Property Codes As String = DefaultCodes
 
     Public Function Copy() As ArduinoCommandMap
-        Return New ArduinoCommandMap With {.Codes = Codes}
+        Dim result As New ArduinoCommandMap With {.Codes = Codes}
+        result.NormalizeLegacy()
+        Return result
     End Function
 
     Public Shared Function CommandName(index As Integer) As String
@@ -22,17 +25,30 @@ Public Class ArduinoCommandMap
             Case 21 : Return "House light off"
             Case 22 : Return "Tone on"
             Case 23 : Return "Tone off"
-            Case 24 : Return "Pump on"
-            Case 25 : Return "Pump off"
-            Case 26 : Return "Feeder pulse"
-            Case 27 : Return "Pump pulse"
+            Case 24 : Return "Pump 1 on"
+            Case 25 : Return "Pump 1 off"
+            Case 26 : Return "Feeder 1 pulse"
+            Case 27 : Return "Pump 1 pulse"
             Case 28 : Return "Tone pulse"
             Case 29 : Return "All off"
+            Case 30 : Return "Feeder 2 pulse"
+            Case 31 : Return "Pump 2 pulse"
             Case Else : Throw New ArgumentOutOfRangeException(NameOf(index))
         End Select
     End Function
 
+    Public Sub NormalizeLegacy()
+        If Codes Is Nothing OrElse Codes.Length <> LegacyCodes.Length Then Return
+        'Never overwrite a historical mapping. Append two unused letters only.
+        For Each preferred As Char In "UV"
+            Dim available As Char = preferred
+            If Codes.Contains(available) Then available = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz".First(Function(letter) Not Codes.Contains(letter))
+            Codes &= available
+        Next
+    End Sub
+
     Public Function ValidationError() As String
+        NormalizeLegacy()
         If Codes Is Nothing OrElse Codes.Length <> DefaultCodes.Length Then Return "Enter one letter for each Arduino command."
         Dim used As New Dictionary(Of Char, Integer)()
         For index As Integer = 0 To Codes.Length - 1
@@ -51,6 +67,7 @@ Public Class ArduinoCommandMap
     'Call exactly once, at the serial boundary. The engine uses the default codes
     'as logical action identifiers, even when a macro remaps the transmitted letters.
     Public Function Encode(logicalCommands As String) As String
+        NormalizeLegacy()
         Dim result As New StringBuilder()
         For Each logicalCommand As Char In logicalCommands
             Dim index As Integer = DefaultCodes.IndexOf(logicalCommand)
@@ -71,7 +88,7 @@ Public Class ArduinoCommandMap
 
     Public Shared Function FromLegacyLevers(letters As String) As ArduinoCommandMap
         If letters Is Nothing OrElse letters.Length <> MAX_INPUTS Then Throw New ArgumentException("Enter one letter for each lever.")
-        Dim codes As Char() = DefaultCodes.ToCharArray()
+        Dim codes As Char() = LegacyCodes.ToCharArray()
         For index As Integer = 0 To MAX_INPUTS - 1
             codes(index * 2) = Char.ToUpperInvariant(letters(index))
             codes(index * 2 + 1) = Char.ToLowerInvariant(letters(index))

@@ -1,4 +1,4 @@
-﻿Option Strict On
+Option Strict On
 Imports System.IO
 Imports System.Globalization
 Imports Microsoft.VisualBasic.FileIO
@@ -124,7 +124,7 @@ Public NotInheritable Class SessionReferenceData
                 Dim boundary As SessionReferencePresentation = Nothing
                 If Not presentationMap.TryGetValue(item.Presentation, boundary) OrElse boundary.Component <> item.Component OrElse item.TimeMs < boundary.StartTimeMs OrElse item.ComponentTimeMs <> item.TimeMs - boundary.StartTimeMs OrElse (boundary.EndTimeMs.HasValue AndAlso item.TimeMs > boundary.EndTimeMs.Value) Then Return "Reference delivery falls outside its presentation."
             End If
-            If Not {"Pellet", "Liquid"}.Contains(item.ReinforcerType) OrElse Not {"Scheduled", "Time", "Manual", "Yoked"}.Contains(item.Source) OrElse item.SequenceNumber < 0 OrElse item.BatchNumber < 0 Then Return "Reference delivery type or source is invalid."
+            If Not ReinforcerOutputs.IsConcrete(item.ReinforcerType) OrElse Not {"Scheduled", "Time", "Manual", "Yoked"}.Contains(item.Source) OrElse item.SequenceNumber < 0 OrElse item.BatchNumber < 0 Then Return "Reference delivery type or source is invalid."
             If item.SequenceNumber > 0 AndAlso (item.Source = "Manual" OrElse Not seen.Contains(item.Component & ":" & item.SequenceNumber)) Then Return "Reference delivery has no matching trial."
             last = item.TimeMs
         Next
@@ -265,7 +265,7 @@ Public NotInheritable Class SessionReferenceData
                 item.Outcome = row(5)
                 If (Not {"Delivered", "Omitted", "Cancelled"}.Contains(item.Outcome) AndAlso Not item.Outcome.StartsWith("Cancelled:", StringComparison.Ordinal)) OrElse (item.Outcome = "Delivered" AndAlso item.DeliveredCount.Value = 0) OrElse (item.Outcome = "Omitted" AndAlso item.DeliveredCount.Value <> 0) Then Throw New InvalidDataException("Inconsistent Lag outcome.")
             ElseIf code = "DeliveredReinforcer" Then
-                If (row.Length <> 8 AndAlso row.Length <> 9) OrElse Not starts.ContainsKey(component) OrElse Not {"Pellet", "Liquid"}.Contains(row(5)) Then Throw New InvalidDataException("Invalid delivered reinforcer record.")
+                If (row.Length <> 8 AndAlso row.Length <> 9) OrElse Not starts.ContainsKey(component) OrElse Not ReinforcerOutputs.IsConcrete(row(5)) Then Throw New InvalidDataException("Invalid delivered reinforcer record.")
                 Dim item As New SessionReferenceDelivery With {.TimeMs = time, .Component = component, .Presentation = CInt(Number(row(3), Integer.MaxValue)), .Input = CInt(Number(row(4), 6)), .ReinforcerType = row(5), .SequenceNumber = Number(row(6), Long.MaxValue), .ComponentTimeMs = time - starts(component), .Source = row(7), .BatchNumber = If(row.Length = 9, Number(row(8), Long.MaxValue), 0)}
                 If Not {"Scheduled", "Time", "Manual", "Yoked"}.Contains(item.Source) Then Throw New InvalidDataException("Invalid delivery source.")
                 If item.Source = "Manual" AndAlso item.SequenceNumber <> 0 Then Throw New InvalidDataException("Manual delivery cannot belong to a Lag trial.")

@@ -1,4 +1,4 @@
-﻿Imports System.Math
+Imports System.Math
 Imports System.IO.Ports
 Imports System.Security.Cryptography
 Imports System.Windows.Forms.DataVisualization.Charting
@@ -207,6 +207,7 @@ Public Class ChamberSession
     End Function
 
     Private Function ScheduleText(inputIndex As Integer) As String
+        If IsBreakpointSchedule(inputIndex) Then Return BreakpointConfiguration.Summary(BreakpointConfiguration.GetDefinition(AC(vCC), inputIndex))
         If HasClassicChain(inputIndex) Then Return ChainScheduleText(inputIndex)
         If AC(vCC).ScheduleType(inputIndex) = "N/A" Then Return "N/A"
         If AC(vCC).ScheduleType(inputIndex) = "Extinction" Then Return "Extinction"
@@ -330,6 +331,7 @@ Public Class ChamberSession
     End Sub
 
     Private Function ScheduleStatusText(inputIndex As Integer) As String
+        If IsBreakpointSchedule(inputIndex) Then Return BreakpointStatusText(inputIndex)
         If HasClassicChain(inputIndex) Then Return ChainStatusText(inputIndex)
         If IsYokedComponent() Then Return If(IsInputAvailable(inputIndex), YokedStatusText(inputIndex), "N/A")
         If IsLagComponent() Then Return If(IsInputAvailable(inputIndex), LagStatusText(), "N/A")
@@ -586,6 +588,7 @@ Public Class ChamberSession
 
     Private Sub BeginPrograms() 'Call this at the start of each component
         StopClassicChains("ComponentRestart")
+        StopBreakpoints("ComponentRestart")
         componentPresentation += 1
 
         ' =========================================================
@@ -733,6 +736,7 @@ Public Class ChamberSession
             Return
         End If
         If SessionStarted AndAlso SessionEnding = False AndAlso tmrStart.Enabled = False AndAlso IsInputAvailable(Lever) Then
+            If Not tmrICI.Enabled AndAlso (HasClassicChain(Lever) OrElse IsBreakpointSchedule(Lever)) AndAlso Not ChainComponentAlive() Then Return
 
             ' Increment real-time response counter for plotting
             chartResponse(Lever) += 1
@@ -761,7 +765,7 @@ Public Class ChamberSession
                 End If
 
                 Dim responsePresentation = componentPresentation
-                If HasClassicChain(Lever) AndAlso Not ChainComponentAlive() Then Return
+                If (HasClassicChain(Lever) OrElse IsBreakpointSchedule(Lever)) AndAlso Not ChainComponentAlive() Then Return
 
                 Dim timeoutWasActive = ClassicTimeoutActive()
                 ' Deliver programmed feedback stimulus (if any)
@@ -786,7 +790,9 @@ Public Class ChamberSession
                         ResponseCount(vCC, Lever) += 1
                         RefreshInputStatusTable()
 
-                        If HasClassicChain(Lever) Then
+                        If IsBreakpointSchedule(Lever) Then
+                            ProcessBreakpointResponse(Lever, Not timeoutWasActive)
+                        ElseIf HasClassicChain(Lever) Then
                             ProcessChainResponse(Lever, Not timeoutWasActive)
                         ElseIf IsRatioSchedule(Lever) Then
                             Ratio(Lever)
@@ -867,7 +873,12 @@ Public Class ChamberSession
 
     Private Sub Reinforce(Lever As Integer, Delay As Boolean, Optional source As String = "Scheduled")
         Dim hasChain = Lever >= 0 AndAlso HasClassicChain(Lever)
-        If hasChain AndAlso Not ChainComponentAlive() Then Return
+        Dim hasBreakpoint = Lever >= 0 AndAlso IsBreakpointSchedule(Lever)
+        If (hasChain OrElse hasBreakpoint) AndAlso Not ChainComponentAlive() Then Return
+        If hasBreakpoint AndAlso source = "Scheduled" Then
+            Dim state = CurrentBreakpoint(Lever)
+            If state Is Nothing OrElse Not state.Active OrElse Not state.PendingReinforcer OrElse state.Presentation <> componentPresentation Then Return
+        End If
         Dim originalPresentation = componentPresentation
 
         If Lever >= 0 AndAlso Lever < MAX_INPUTS AndAlso AC(vCC).DelayDuration(Lever) > 0 AndAlso Delay = False Then
@@ -928,7 +939,9 @@ Public Class ChamberSession
                 chainStates(Lever).PendingReinforcer = False
                 WriteLine(1, vTimeNow, vCC, "ChainReinforcementResolved", componentPresentation, Lever + 1, deliveredCount)
             End If
-            If Not hasChain Then
+            If hasBreakpoint Then
+                If source = "Scheduled" Then CompleteBreakpointDelivery(Lever, deliveredCount)
+            ElseIf Not hasChain Then
                 InitializeSchedule(Lever)
             ElseIf source = "Scheduled" AndAlso Not MaximumReinforcersReached() AndAlso originalPresentation = componentPresentation Then
                 If Not ChainComponentAlive() Then Return
@@ -953,10 +966,13 @@ Public Class ChamberSession
     Private Function ReinforcerDelivery(reinforcerType As String, deliveryProbability As Integer, pelletProbability As Integer, Optional physicalInput As Integer = 0, Optional source As String = "Scheduled") As Boolean
         If Not ProbabilityHit(deliveryProbability) Then Return False
         Dim actualType As String = reinforcerType
-        If actualType = "Random" Then actualType = If(ProbabilityHit(pelletProbability), "Pellet", "Liquid")
-        If actualType <> "Pellet" AndAlso actualType <> "Liquid" Then Return False
+        If actualType = "Random" Then
+            Dim selection = If(physicalInput = 0, AC(vCC).TimeReinforcerSelection, ReinforcerConfiguration.InputSelection(AC(vCC), physicalInput - 1))
+            actualType = If(selection Is Nothing, If(ProbabilityHit(pelletProbability), "Pellet", "Liquid"), ReinforcerConfiguration.Choose(selection, SessionRandom.Next(100)))
+        End If
+        If Not ReinforcerConfiguration.IsConcrete(actualType) Then Return False
         If Not SimulationMode AndAlso (Arduino Is Nothing OrElse Not Arduino.IsOpen) Then Throw New IO.IOException("Reinforcer command cannot be sent: the chamber connection is closed.")
-        SendArduino(If(actualType = "Pellet", "R", "W"))
+        SendArduino(ReinforcerConfiguration.Command(actualType))
         RecordDeliveredReinforcer(physicalInput, actualType, source)
         Return True
     End Function
@@ -1150,6 +1166,10 @@ Public Class ChamberSession
     End Sub
 
     Private Sub InitializeSchedule(inputIndex As Integer)
+        If IsBreakpointSchedule(inputIndex) Then
+            BeginBreakpoint(inputIndex)
+            Return
+        End If
         If HasClassicChain(inputIndex) Then
             BeginClassicChain(inputIndex)
             Return
@@ -1210,6 +1230,7 @@ Public Class ChamberSession
     Private Sub WriteSessionSummary()
         FileClose(1)
         WriteLagSummary()
+        WriteBreakpointSummary()
 
         If HasAnyObtainedDelay() Then
             ' ---------------------------------------------------------
@@ -1410,7 +1431,7 @@ Public Class ChamberSession
 
             Dim presentation = componentPresentation
             Reinforce(inputIndex, True)
-            If presentation <> componentPresentation OrElse SessionEnding OrElse SessionClosed Then Return
+            If presentation <> componentPresentation OrElse SessionEnding OrElse SessionClosed OrElse tmrICI.Enabled OrElse Not tmrComponentDuration.Enabled Then Return
             RestoreRetractedInput(inputIndex)
 
             If DelayOnset(inputIndex) >= 0 AndAlso DelayComp(inputIndex) = vCC Then
@@ -1479,7 +1500,8 @@ Public Class ChamberSession
 
             If AC(vCC).FeedbackType(inputIndex).Contains("Time Out") AndAlso Not ClassicTimeoutActive() Then
                 For activeInput As Integer = 0 To ActiveInputCount() - 1
-                    SetInputOutput(activeInput, IsInputAvailable(activeInput) AndAlso ChainInputShouldBeExtended(activeInput))
+                    Dim delayRetracts = DelayTimers(activeInput).Enabled AndAlso AC(vCC).DelayRetract(activeInput)
+                    SetInputOutput(activeInput, IsInputAvailable(activeInput) AndAlso ChainInputShouldBeExtended(activeInput) AndAlso Not delayRetracts)
                 Next
                 StartComponentStimulus()
                 If AC(vCC).HouselightOnOff = True Then SendArduino("H")
@@ -1580,6 +1602,7 @@ Public Class ChamberSession
 
     Private Sub ComponentDuration_Code()
         StopClassicChains("ComponentEnd")
+        StopBreakpoints("ComponentEnd")
         StopLagActivity("ComponentEnd")
         'This routine handles the formal termination of a component.
         'It logs the component end, computes the actual component duration,

@@ -1,4 +1,4 @@
-Option Strict On
+﻿Option Strict On
 Imports System.Drawing
 Imports System.Windows.Forms
 
@@ -53,7 +53,7 @@ Friend Class ChainScheduleEditor
         fields.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100))
         AddField(fields, 0, "Schedule", kind)
         AddField(fields, 1, "Value (s / responses)", value)
-        AddField(fields, 2, "Series values", count)
+        AddField(fields, 2, "Iterations", count)
         AddField(fields, 3, "Link signals", stimuli, 120)
         AddField(fields, 4, "Light on/off (s)", light)
         AddField(fields, 5, "Tone on/off (s)", tone)

@@ -1,4 +1,4 @@
-﻿Option Strict On
+Option Strict On
 
 'One instance per component per session. Only the comparison window is retained in memory;
 'every completed sequence (including failures) is written to the raw session file.
@@ -120,13 +120,13 @@ Friend NotInheritable Class LagConfiguration
             If schedule = "N/A" Then Continue For
             If i >= component.InputCount OrElse schedule <> "Lag" Then Return "A Lag component may contain only Lag inputs or N/A slots."
             count += 1
-            If component.Magnitude(i) <= 0 OrElse Not {"Pellet", "Liquid", "Random"}.Contains(component.Reinforcer(i)) Then Return "Select a reinforcer and a positive magnitude for Lag."
+            If component.Magnitude(i) <= 0 OrElse Not (component.Reinforcer(i) = "Random" OrElse ReinforcerConfiguration.IsConcrete(component.Reinforcer(i))) Then Return "Select a reinforcer and a positive magnitude for Lag."
             If component.DeliveryP(i) < 0 OrElse component.DeliveryP(i) > 100 OrElse component.PelletP(i) < 0 OrElse component.PelletP(i) > 100 Then Return "Reinforcer probabilities must be between 0 and 100."
             If Not ValidSeconds(component.FeedbackDuration(i)) OrElse Not ValidSeconds(component.DelayDuration(i)) OrElse Not ValidSeconds(component.DelaySignalDuration(i)) Then Return "Feedback and delay durations must be finite, nonnegative values within the timer limit."
             If If(component.FeedbackType(i), "").Contains("Time Out") Then Return "Use the Lag failure timeout instead of response-feedback Time Out."
             If first < 0 Then
                 first = i
-            ElseIf component.Magnitude(i) <> component.Magnitude(first) OrElse component.Reinforcer(i) <> component.Reinforcer(first) OrElse component.DeliveryP(i) <> component.DeliveryP(first) OrElse component.PelletP(i) <> component.PelletP(first) OrElse component.DelayDuration(i) <> component.DelayDuration(first) OrElse component.DelaySignalDuration(i) <> component.DelaySignalDuration(first) OrElse component.DelayType(i) <> component.DelayType(first) OrElse component.DelayRetract(i) <> component.DelayRetract(first) Then
+            ElseIf component.Magnitude(i) <> component.Magnitude(first) OrElse component.Reinforcer(i) <> component.Reinforcer(first) OrElse component.DeliveryP(i) <> component.DeliveryP(first) OrElse component.PelletP(i) <> component.PelletP(first) OrElse Not ReinforcerConfiguration.SameSelection(ReinforcerConfiguration.InputSelection(component, i), ReinforcerConfiguration.InputSelection(component, first)) OrElse component.DelayDuration(i) <> component.DelayDuration(first) OrElse component.DelaySignalDuration(i) <> component.DelaySignalDuration(first) OrElse component.DelayType(i) <> component.DelayType(first) OrElse component.DelayRetract(i) <> component.DelayRetract(first) Then
                 Return "All Lag inputs must share the same sequence reinforcer and delay settings."
             End If
         Next

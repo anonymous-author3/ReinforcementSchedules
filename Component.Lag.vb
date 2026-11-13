@@ -1,4 +1,4 @@
-﻿Imports System.Drawing
+Imports System.Drawing
 Imports System.Numerics
 Imports System.Windows.Forms
 
@@ -230,6 +230,10 @@ Partial Public Class Component
         Dim rawError As String = ValidateLagReinforcerText(txbMagL1.Text, txbDeliveryProbability1.Text, txbPelletProbability1.Text, cbbReinforcer1.Text)
         If rawError <> "" Then Return LagInputError(rawError)
         Dim common As ComponentInputConfiguration = BuildInputFromEditor(1)
+        If common.Reinforcer = "Random" Then
+            Dim selectionError = ReinforcerConfiguration.ValidateSelection(common.ReinforcerSelection)
+            If Not String.IsNullOrEmpty(selectionError) Then Return LagInputError(selectionError)
+        End If
         If common.Reinforcer = "" OrElse common.Reinforcer = "N/A" OrElse common.Magnitude <= 0 Then Return LagInputError("Select a reinforcer and enter a magnitude greater than 0.")
         If common.DeliveryP < 0 OrElse common.DeliveryP > 100 OrElse (common.Reinforcer = "Random" AndAlso (common.PelletP < 0 OrElse common.PelletP > 100)) Then Return LagInputError("Reinforcer probabilities must be between 0 and 100.")
         Dim delay As Double = ToDoubleSafe(txbDelayDurL1.Text, -1)
@@ -243,6 +247,7 @@ Partial Public Class Component
             End If
         Next
         AddedInputs.Clear()
+        deletedInputSlots.Clear()
         lstInputs.Items.Clear()
         lstInputs.Items.Add("Lag " & lagValue.Value & " / " & lagLength.Value & " responses")
         lstInputs.Items.Add("Failure: " & If(lagFailure.SelectedIndex = 1, "TO " & lagTimeout.Value & " s" & If(lagTimeoutTone.Checked, " + Tono", ""), "omit reinforcer"))
@@ -263,6 +268,7 @@ Partial Public Class Component
             lstInputs.Items.Add("Input " & (i + 1) & ": " & If(inputInfo.ScheduleType = "Lag", "Lag / " & inputInfo.FeedbackType & " (" & If(inputInfo.FeedbackType <> "None" AndAlso inputInfo.FeedbackDuration = 0, "until sequence ends", inputInfo.FeedbackDuration & " s") & ")", "N/A"))
         Next
         cbbScheduleMode.Enabled = False
+        UpdateDeleteInputButton()
         Return True
     End Function
 End Class

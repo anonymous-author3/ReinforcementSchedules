@@ -1,4 +1,4 @@
-﻿Imports System.Drawing
+Imports System.Drawing
 Imports System.IO
 Imports System.Net
 Imports System.Net.Http
@@ -153,7 +153,7 @@ Module StorageTests
             Dim entries = Await restarted.ListSetupsAsync()
             Check(entries.Count = 1 AndAlso entries(0).FileName = Path.GetFileName(setupPath), "RTDB index lists the uploaded configuration")
             Dim cached = Await restarted.DownloadSetupAsync(entries(0))
-            Check(File.ReadAllText(cached) = File.ReadAllText(setupPath), "RTDB configuration round-trips without losing fields")
+            Check(SampleJson(cached) = SampleJson(setupPath), "RTDB configuration round-trips without losing fields (JSON property ordering is not data)")
             Check(SetupSaveData.Read(cached).Components(1).ScheduleValue(0) = 5, "Downloaded configuration uses existing validation")
 
             Dim missingDuration = StorageJson.Decode(File.ReadAllText(setupPath))

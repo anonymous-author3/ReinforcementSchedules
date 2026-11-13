@@ -1,4 +1,4 @@
-﻿Public Class SetUp
+Public Class SetUp
     Private ReadOnly SetUpToolTip As New ToolTip()
 
     Private Sub AppendConfigLine(lines As List(Of String), label As String, value As Object)
@@ -97,6 +97,19 @@
                     Dim link = chain.Links(linkIndex)
                     AppendConfigLine(lines, "Component " & i & " Input " & (inputIndex + 1) & " Chain Link " & (linkIndex + 1), link.ScheduleType & " " & link.Value & "; series=" & link.VariableValueCount & "; stimulus=" & link.StimulusType & "; light interval=" & link.LightIntermittency & "; tone interval=" & link.ToneIntermittency & "; retract input=" & link.RetractInput)
                 Next
+            Next
+        Next
+        For i As Integer = 1 To vCC
+            For inputIndex As Integer = 0 To AC(i).InputCount - 1
+                Dim definition = BreakpointConfiguration.GetDefinition(AC(i), inputIndex)
+                If definition IsNot Nothing Then AppendConfigLine(lines, "Component " & i & " Input " & (inputIndex + 1) & " Breakpoint", BreakpointConfiguration.Summary(definition) & "; restart each presentation; geometric fractions round UP from the previous integer requirement; advance once per successful scheduled delivery batch; normal component limits")
+            Next
+        Next
+        For i As Integer = 1 To vCC
+            If AC(i).TimeReinforcerSelection IsNot Nothing Then AppendConfigLine(lines, "Component " & i & " Time Random outputs", ReinforcerConfiguration.Summary(AC(i).TimeReinforcerSelection))
+            For inputIndex As Integer = 0 To AC(i).InputCount - 1
+                Dim selection = ReinforcerConfiguration.InputSelection(AC(i), inputIndex)
+                If selection IsNot Nothing Then AppendConfigLine(lines, "Component " & i & " Input " & (inputIndex + 1) & " Random outputs", ReinforcerConfiguration.Summary(selection))
             Next
         Next
         Return lines.ToArray()
@@ -276,6 +289,8 @@
     End Function
 
     Private Function ScheduleDisplay(componentIndex As Integer, inputIndex As Integer) As String
+        Dim definition = BreakpointConfiguration.GetDefinition(AC(componentIndex), inputIndex)
+        If definition IsNot Nothing Then Return BreakpointConfiguration.Summary(definition)
         Dim chain = ClassicChainConfiguration.GetChain(AC(componentIndex), inputIndex)
         If chain IsNot Nothing Then Return ClassicChainConfiguration.Summary(chain)
         If IsInputUnavailable(componentIndex, inputIndex) Then Return "N/A"
@@ -302,7 +317,8 @@
         End If
 
         If reinforcer = "Random" Then
-            displayText &= " (" & AC(componentIndex).PelletP(inputIndex) & "% pellet)"
+            Dim selection = ReinforcerConfiguration.InputSelection(AC(componentIndex), inputIndex)
+            displayText &= " (" & If(selection Is Nothing, AC(componentIndex).PelletP(inputIndex) & "% Feeder 1 / " & (100 - AC(componentIndex).PelletP(inputIndex)) & "% Pump 1", ReinforcerConfiguration.Summary(selection)) & ")"
         End If
 
         Return displayText
@@ -315,7 +331,8 @@
             AC(componentIndex).TimeMagnitude & " " & AC(componentIndex).TimeReinforcer & " / Deliver " & AC(componentIndex).TimeDeliveryP & "%"
 
         If AC(componentIndex).TimeReinforcer = "Random" Then
-            displayText &= " (" & AC(componentIndex).TimePelletP & "% pellet)"
+            Dim selection = AC(componentIndex).TimeReinforcerSelection
+            displayText &= " (" & If(selection Is Nothing, AC(componentIndex).TimePelletP & "% Feeder 1 / " & (100 - AC(componentIndex).TimePelletP) & "% Pump 1", ReinforcerConfiguration.Summary(selection)) & ")"
         End If
 
         Return displayText
@@ -527,6 +544,8 @@
                 AC(i) = New ComponentBlueprint
                 IntervalScheduleTiming.NormalizeLegacyCounts(AC(i))
                 ClassicChainConfiguration.NormalizeLegacy(AC(i))
+                BreakpointConfiguration.NormalizeLegacy(AC(i))
+                ReinforcerConfiguration.NormalizeLegacy(AC(i))
                 ReDim AC(i).InputName(MAX_INPUTS - 1)
                 ReDim AC(i).ScheduleType(MAX_INPUTS - 1)
                 ReDim AC(i).ScheduleValue(MAX_INPUTS - 1)
@@ -747,6 +766,8 @@
         AC(vCC).Reinforcer = Nothing
         AC(vCC).DeliveryP = Nothing
         AC(vCC).PelletP = Nothing
+        AC(vCC).ReinforcerSelections = Nothing
+        AC(vCC).TimeReinforcerSelection = Nothing
         AC(vCC).FeedbackDuration = Nothing
         AC(vCC).FeedbackType = Nothing
         AC(vCC).DelayDuration = Nothing

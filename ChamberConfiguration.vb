@@ -1,4 +1,4 @@
-﻿Public Class ChamberConfiguration
+Public Class ChamberConfiguration
     Public Property BoxName As String
     Public Property ComPort As String
     Public Property Subject As String
@@ -27,6 +27,7 @@
     Friend Shared Function CloneComponent(source As ComponentBlueprint) As ComponentBlueprint
         Dim copy As ComponentBlueprint = source
         If source.ClassicChains IsNot Nothing Then copy.ClassicChains = source.ClassicChains.Select(Function(chain) If(chain Is Nothing, Nothing, chain.Copy())).ToArray()
+        If source.BreakpointSchedules IsNot Nothing Then copy.BreakpointSchedules = source.BreakpointSchedules.Select(Function(item) If(item Is Nothing, Nothing, item.Copy())).ToArray()
         If source.YokedReference IsNot Nothing Then copy.YokedReference = source.YokedReference.Copy()
         If source.LagHistoryReference IsNot Nothing Then copy.LagHistoryReference = source.LagHistoryReference.Copy()
         If source.ComponentDuration_measured IsNot Nothing Then copy.ComponentDuration_measured = DirectCast(source.ComponentDuration_measured.Clone(), Integer())
@@ -38,6 +39,8 @@
         If source.Reinforcer IsNot Nothing Then copy.Reinforcer = DirectCast(source.Reinforcer.Clone(), String())
         If source.DeliveryP IsNot Nothing Then copy.DeliveryP = DirectCast(source.DeliveryP.Clone(), Integer())
         If source.PelletP IsNot Nothing Then copy.PelletP = DirectCast(source.PelletP.Clone(), Integer())
+        If source.ReinforcerSelections IsNot Nothing Then copy.ReinforcerSelections = source.ReinforcerSelections.Select(Function(item) If(item Is Nothing, Nothing, item.Copy())).ToArray()
+        copy.TimeReinforcerSelection = If(source.TimeReinforcerSelection Is Nothing, Nothing, source.TimeReinforcerSelection.Copy())
         If source.TDurationD IsNot Nothing Then copy.TDurationD = DirectCast(source.TDurationD.Clone(), Double())
         If source.TDurationDelta IsNot Nothing Then copy.TDurationDelta = DirectCast(source.TDurationDelta.Clone(), Double())
         If source.TProbabilityD IsNot Nothing Then copy.TProbabilityD = DirectCast(source.TProbabilityD.Clone(), Integer())

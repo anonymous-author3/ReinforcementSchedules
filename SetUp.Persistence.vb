@@ -1,4 +1,4 @@
-﻿Imports System.IO
+Imports System.IO
 
 Partial Public Class SetUp
     Private lastConfigurationPath As String = ""
@@ -38,7 +38,8 @@ Partial Public Class SetUp
     Private Function LegacyDelayNotice() As String
         For i As Integer = 1 To vCC
             If AC(i).LagEnabled Then Continue For
-            If AC(i).DelayDuration IsNot Nothing AndAlso AC(i).DelayDuration.Any(Function(seconds) seconds > 0) Then
+            Dim component = AC(i)
+            If component.DelayDuration IsNot Nothing AndAlso Enumerable.Range(0, component.InputCount).Any(Function(input) component.DelayDuration(input) > 0 AndAlso component.ScheduleType(input) <> "T Schedule" AndAlso component.ScheduleType(input) <> "Breakpoint") Then
                 Return Environment.NewLine & Environment.NewLine & "This setup retains legacy reinforcement delays (including input retraction and cross-input blocking). New Classic schedules use time links instead; legacy delays have not been converted or removed."
             End If
         Next

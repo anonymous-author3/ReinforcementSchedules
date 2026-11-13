@@ -1,4 +1,4 @@
-﻿Imports System.IO
+Imports System.IO
 Imports System.Globalization
 
 Partial Public Class ChamberSession
@@ -23,6 +23,12 @@ Partial Public Class ChamberSession
         RandomCPres = configuration.RandomPresentation
         For i As Integer = 1 To MAXvCC
             ClassicChainConfiguration.NormalizeLegacy(AC(i))
+            BreakpointConfiguration.NormalizeLegacy(AC(i))
+            ReinforcerConfiguration.NormalizeLegacy(AC(i))
+            Dim reinforcerError = ReinforcerConfiguration.ValidationError(AC(i))
+            If reinforcerError <> "" Then Throw New ArgumentException("Component " & i & ": " & reinforcerError)
+            Dim breakpointError = BreakpointConfiguration.ValidationError(AC(i))
+            If breakpointError <> "" Then Throw New ArgumentException("Component " & i & ": " & breakpointError)
             Dim chainError = ClassicChainConfiguration.ValidationError(AC(i))
             If chainError <> "" Then Throw New ArgumentException("Component " & i & ": " & chainError)
             Dim intervalError As String = IntervalScheduleTiming.ValidationError(AC(i))
@@ -115,10 +121,11 @@ Partial Public Class ChamberSession
             chartPath = Path.Combine("C:\Data\Charts", fileStem & "_chart.png")
             WriteLine(1, "Session UID: " & SessionUID)
             WriteLine(1, "ReferenceFormat", 2)
+            WriteLine(1, "Breakpoint events: time-ms, component, event, presentation, input, requirement, outcome/progress; requirements advance once per successful scheduled batch, not per pellet.")
             WriteLine(1, "Subject: " & configuration.Subject)
             WriteLine(1, "Session: " & configuration.SessionName)
             WriteLine(2, "ReferenceFormat", 2)
-            WriteLine(2, "DeliveredReinforcer rows: session milliseconds, component, event, global presentation, input (0=independent time schedule), Pellet/Liquid, Lag sequence (0=none), source, batch number. Each row records one command sent, not sensor-confirmed dispensing.")
+            WriteLine(2, "DeliveredReinforcer rows: session milliseconds, component, event, global presentation, input (0=independent time schedule), Feeder 1/2 or Pump 1/2 (legacy Pellet/Liquid = output 1), Lag sequence (0=none), source, batch number. Each row records one command sent, not sensor-confirmed dispensing.")
             WriteLine(2, "LagOutcome rows: session milliseconds, component, event, sequence number, commands delivered, result. Pass/Fail remains separate from actual delivery commands.")
             WriteLine(2, "Session UID: " & SessionUID)
             WriteLine(2, "Box: " & configuration.BoxName)
@@ -259,6 +266,7 @@ Partial Public Class ChamberSession
     End Sub
     Private Sub StopRuntimeTimers()
         StopClassicChains("SessionStop")
+        StopBreakpoints("SessionStop")
         StopLagActivity("SessionStop")
         acquisitionTimer.Stop()
         For Each timer As Timer In New Timer() {tmrChrt, tmrStart, tmrPostSession, tmrComponentDuration, tmrComponentStim,

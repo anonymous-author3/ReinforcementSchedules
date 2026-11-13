@@ -1,4 +1,4 @@
-﻿Imports System.IO
+Imports System.IO
 Imports System.Reflection
 Imports System.Windows.Forms
 Imports ReinforcementSchedules
@@ -254,7 +254,7 @@ Module ReferenceRuntimeTests
             Try
                 settings.Save(file)
                 Dim loaded = SetupSaveData.Read(file)
-                Check(loaded.FormatVersion = 8 AndAlso loaded.Components(1).YokedEnabled AndAlso loaded.Components(1).YokedReference.Deliveries.Count = 3, "v7 exact references round-trip JSON")
+                Check(loaded.FormatVersion = 10 AndAlso loaded.Components(1).YokedEnabled AndAlso loaded.Components(1).YokedReference.Deliveries.Count = 3, "v10 exact references round-trip JSON")
             Finally
                 If IO.File.Exists(file) Then IO.File.Delete(file)
             End Try

@@ -1,4 +1,4 @@
-﻿Option Strict On
+Option Strict On
 
 Partial Public Class SetUp
     Private Sub InitializeReferenceControls(sender As Object, e As EventArgs) Handles MyBase.Load
@@ -37,7 +37,7 @@ Partial Public Class SetUp
                 Dim source = working(index).YokedReference
                 status.Text = "Prior history: " & If(prior Is Nothing, "none", prior.Subject & " / " & prior.SessionName & " / component " & prior.SelectedComponent & " / UID " & prior.SessionUid) & Environment.NewLine &
                     "Yoked: " & If(Not working(index).YokedEnabled OrElse source Is Nothing, "off", source.Subject & " / " & source.SessionName & " / component " & source.SelectedComponent & " / UID " & source.SessionUid) & Environment.NewLine & Environment.NewLine &
-                    If(working(index).LagEnabled, "Lag Yoked copies each trial's exact Pellet/Liquid commands, independent of sequence. The last reference trial ends the session. Current probability, magnitude, delay, timeout and MaxRefs are bypassed; time remains a safety limit.", "Classic/T Yoked makes reference batches available at their source component times. One response on the same input collects the next available batch. Independent FT/VT references are not supported.")
+                    If(working(index).LagEnabled, "Lag Yoked copies each trial's exact feeder/pump output commands, independent of sequence. The last reference trial ends the session. Current probability, magnitude, delay, timeout and MaxRefs are bypassed; time remains a safety limit.", "Classic/T Yoked makes reference batches available at their source component times. One response on the same input collects the next available batch. Independent FT/VT references are not supported.")
             End Sub
             Dim busy As Action(Of Boolean) = Sub(value)
                 component.Enabled = Not value

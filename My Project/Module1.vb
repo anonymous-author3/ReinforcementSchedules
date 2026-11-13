@@ -1,4 +1,4 @@
-﻿Module Module1
+Module Module1
     Public Const MAX_INPUTS As Integer = 6
     Public Const MAX_COMPONENTS As Integer = 10
     Public TestsPerformed As Boolean
@@ -36,12 +36,15 @@
         Dim ScheduleType() As String
         Dim ScheduleValue() As Integer
         <System.Runtime.Serialization.OptionalField> Public ClassicChains() As ClassicChainDefinition
+        <System.Runtime.Serialization.OptionalField> Public BreakpointSchedules() As BreakpointDefinition
         <System.Runtime.Serialization.OptionalField> Public VariableValueCount() As Integer
         <System.Runtime.Serialization.OptionalField> Public TimeVariableValueCount As Integer
         Dim Magnitude() As Integer
         Dim Reinforcer() As String
         Dim DeliveryP() As Integer
         Dim PelletP() As Integer
+        <System.Runtime.Serialization.OptionalField> Public ReinforcerSelections() As ReinforcerSelectionDefinition
+        <System.Runtime.Serialization.OptionalField> Public TimeReinforcerSelection As ReinforcerSelectionDefinition
         Dim TDurationD() As Double
         Dim TDurationDelta() As Double
         Dim TProbabilityD() As Integer

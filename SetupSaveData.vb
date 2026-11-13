@@ -1,4 +1,4 @@
-﻿Imports System.IO
+Imports System.IO
 Imports System.Reflection
 Imports System.Runtime.Serialization
 Imports System.Text
@@ -9,7 +9,7 @@ Imports System.Web.Script.Serialization
 <DataContract(Name:="ReinforcementSchedulesSetup", [Namespace]:="urn:reinforcement-schedules:setup")>
 Friend Class SetupSaveData
     <DataMember(IsRequired:=True)>
-    Public Property FormatVersion As Integer = 8
+    Public Property FormatVersion As Integer = 10
     <DataMember(IsRequired:=True)>
     Public Property SavedAtUtc As DateTime
     <DataMember(IsRequired:=True)>
@@ -41,7 +41,7 @@ Friend Class SetupSaveData
 
     Public Sub Validate()
         'Version 1 files may contain per-box details; those members are ignored on load.
-        If FormatVersion < 1 OrElse FormatVersion > 8 Then Throw New InvalidDataException("This setup file uses an unsupported version.")
+        If FormatVersion < 1 OrElse FormatVersion > 10 Then Throw New InvalidDataException("This setup file uses an unsupported version.")
         For Each field As PropertyInfo In GetType(SetupSaveData).GetProperties()
             If field.Name = NameOf(LegacyLeverLetters) Then Continue For
             If field.PropertyType Is GetType(String) AndAlso field.GetValue(Me) Is Nothing Then
@@ -60,6 +60,8 @@ Friend Class SetupSaveData
             Dim component As ComponentBlueprint = Components(componentIndex)
             IntervalScheduleTiming.NormalizeLegacyCounts(component)
             ClassicChainConfiguration.NormalizeLegacy(component)
+            BreakpointConfiguration.NormalizeLegacy(component)
+            ReinforcerConfiguration.NormalizeLegacy(component)
             Components(componentIndex) = component
             If component.InputCount < 1 OrElse component.InputCount > MAX_INPUTS Then
                 Throw New InvalidDataException("Invalid input count in component " & componentIndex & ".")
@@ -71,6 +73,10 @@ Friend Class SetupSaveData
                     Throw New InvalidDataException("Incomplete " & field.Name & " in component " & componentIndex & ".")
                 End If
             Next
+            Dim reinforcerError = ReinforcerConfiguration.ValidationError(component)
+            If reinforcerError <> "" Then Throw New InvalidDataException("Component " & componentIndex & ": " & reinforcerError)
+            Dim breakpointError = BreakpointConfiguration.ValidationError(component)
+            If breakpointError <> "" Then Throw New InvalidDataException("Component " & componentIndex & ": " & breakpointError)
             Dim chainError = ClassicChainConfiguration.ValidationError(component)
             If chainError <> "" Then Throw New InvalidDataException("Component " & componentIndex & ": " & chainError)
             Dim intervalError As String = IntervalScheduleTiming.ValidationError(component)
@@ -185,6 +191,32 @@ Friend Class SetupSaveData
             If Convert.ToInt32(fields("FormatVersion")) >= 8 AndAlso (Not componentFields.ContainsKey("ClassicChains") OrElse componentFields("ClassicChains") Is Nothing) Then
                 Throw New InvalidDataException("Missing classic chain settings in component " & index & ".")
             End If
+            If Convert.ToInt32(fields("FormatVersion")) >= 9 AndAlso (Not componentFields.ContainsKey("BreakpointSchedules") OrElse componentFields("BreakpointSchedules") Is Nothing) Then
+                Throw New InvalidDataException("Missing breakpoint settings in component " & index & ".")
+            End If
+            If Convert.ToInt32(fields("FormatVersion")) >= 10 AndAlso (Not componentFields.ContainsKey("ReinforcerSelections") OrElse componentFields("ReinforcerSelections") Is Nothing) Then
+                Throw New InvalidDataException("Missing reinforcer selections in component " & index & ".")
+            End If
+            If componentFields.ContainsKey("ReinforcerSelections") AndAlso componentFields("ReinforcerSelections") IsNot Nothing Then
+                Dim selections = TryCast(componentFields("ReinforcerSelections"), System.Collections.IList)
+                If selections Is Nothing OrElse selections.Count <> MAX_INPUTS Then Throw New InvalidDataException("Incomplete reinforcer selections.")
+                For Each selection In selections
+                    ValidateRawReinforcerSelection(selection)
+                Next
+            End If
+            If componentFields.ContainsKey("TimeReinforcerSelection") Then ValidateRawReinforcerSelection(componentFields("TimeReinforcerSelection"))
+            If componentFields.ContainsKey("BreakpointSchedules") AndAlso componentFields("BreakpointSchedules") IsNot Nothing Then
+                Dim definitions = TryCast(componentFields("BreakpointSchedules"), System.Collections.IList)
+                If definitions Is Nothing OrElse definitions.Count <> MAX_INPUTS Then Throw New InvalidDataException("Incomplete breakpoint settings.")
+                For Each rawDefinition In definitions
+                    If rawDefinition Is Nothing Then Continue For
+                    Dim definition = TryCast(rawDefinition, Dictionary(Of String, Object))
+                    If definition Is Nothing Then Throw New InvalidDataException("Invalid breakpoint settings.")
+                    For Each name In {"Progression", "StartRequirement", "StepValue"}
+                        If Not definition.ContainsKey(name) OrElse definition(name) Is Nothing Then Throw New InvalidDataException("Missing breakpoint value: " & name)
+                    Next
+                Next
+            End If
             If componentFields.ContainsKey("ClassicChains") AndAlso componentFields("ClassicChains") IsNot Nothing Then
                 Dim chains = TryCast(componentFields("ClassicChains"), System.Collections.IList)
                 If chains Is Nothing OrElse chains.Count <> MAX_INPUTS Then Throw New InvalidDataException("Incomplete classic chains in component " & index)
@@ -214,6 +246,17 @@ Friend Class SetupSaveData
         result.Validate()
         Return result
     End Function
+
+    Private Shared Sub ValidateRawReinforcerSelection(raw As Object)
+        If raw Is Nothing Then Return
+        Dim fields = TryCast(raw, Dictionary(Of String, Object))
+        If fields Is Nothing Then Throw New InvalidDataException("Invalid reinforcer selection.")
+        For Each name In {"Feeder1Percent", "Pump1Percent", "Feeder2Percent", "Pump2Percent"}
+            If Not fields.ContainsKey(name) OrElse fields(name) Is Nothing Then Throw New InvalidDataException("Missing reinforcer probability: " & name)
+            Dim value = Convert.ToDecimal(fields(name), Globalization.CultureInfo.InvariantCulture)
+            If value <> Decimal.Truncate(value) OrElse value < 0 OrElse value > 100 Then Throw New InvalidDataException("Reinforcer probabilities must be whole percentages from 0 to 100.")
+        Next
+    End Sub
 
     Public Shared Function ReadXml(xml As String) As SetupSaveData
         If xml Is Nothing OrElse Encoding.UTF8.GetByteCount(xml) > MaximumBytes Then Throw New InvalidDataException("Invalid setup size.")

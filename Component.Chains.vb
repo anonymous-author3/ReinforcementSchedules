@@ -40,7 +40,7 @@ Partial Public Class Component
             If currentChain IsNot Nothing Then
                 'Keep the ordinary reinforcer controls enabled for the chain's endpoint.
                 rdoFRL1.Checked = True
-                If cbbReinforcer1.Text = "" Then cbbReinforcer1.Text = "Pellet"
+                If cbbReinforcer1.Text = "" Then cbbReinforcer1.Text = "Feeder 1"
                 If txbMagL1.Text = "" Then txbMagL1.Text = "1"
             End If
             UpdateScheduleModeState()
@@ -48,7 +48,7 @@ Partial Public Class Component
     End Sub
     Private Sub UpdateChainEditorState()
         If chainButton Is Nothing OrElse rdoFRL1 Is Nothing Then Return
-        Dim classic = Not IsTScheduleMode() AndAlso Not IsLagScheduleMode()
+        Dim classic = Not IsTScheduleMode() AndAlso Not IsLagScheduleMode() AndAlso Not IsBreakpointScheduleMode()
         chainButton.Visible = classic
         Dim hasChain = classic AndAlso currentChain IsNot Nothing AndAlso currentChain.Links.Count > 0
         chainLabel.Visible = hasChain
