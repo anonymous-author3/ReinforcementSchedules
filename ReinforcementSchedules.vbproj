@@ -81,6 +81,8 @@
     <Import Include="System.Threading.Tasks" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="ConcurrentViCalculator.vb" />
+    <Compile Include="Component.ConcurrentVi.vb"><DependentUpon>Component.vb</DependentUpon></Compile>
     <Compile Include="ReferenceConfiguration.vb" />
     <Compile Include="SessionReferenceData.vb" />
     <Compile Include="CloudStorage.SessionReferences.vb" />

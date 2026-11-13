@@ -430,6 +430,7 @@ Public Class Component
         UpdateTTotal()
         UpdateVariableControls()
         UpdateChainEditorState()
+        UpdateConcurrentViCalculator()
     End Sub
 
     Private Sub UpdateExtinctionState()
@@ -829,6 +830,7 @@ Public Class Component
         InitializeVariableControls()
         InitializeChainEditor()
         InitializeInputDeletion()
+        InitializeConcurrentViCalculator()
         Me.AutoScroll = False
         Me.StartPosition = FormStartPosition.CenterParent
         GroupBox1.Text = "Input"
